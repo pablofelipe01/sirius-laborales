@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from '@/contexts/AuthContext'
 
@@ -7,8 +7,6 @@ export const metadata: Metadata = {
   description: "Sistema de control de horas trabajadas con pausas activas. Transformando personas, regenerando el mundo.",
   keywords: ["jornada laboral", "pausas activas", "bienestar", "SIRIUS", "Colombia"],
   authors: [{ name: "SIRIUS Regenerative" }],
-  viewport: "width=device-width, initial-scale=1",
-  themeColor: "#7FD1AE",
   manifest: "/manifest.json",
   openGraph: {
     title: "SIRIUS Regenerative - Control de Jornada",
@@ -17,6 +15,12 @@ export const metadata: Metadata = {
     locale: "es_CO",
     siteName: "SIRIUS Regenerative"
   }
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#7FD1AE',
 };
 
 export default function RootLayout({

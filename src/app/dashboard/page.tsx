@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SiriusButton, TimeActionButton } from '@/components/ui/SiriusButton'
 import { SaludoAnimado, MensajeRapido } from '@/components/ui/SaludoAnimado'
 import { PlantaCrecimiento } from '@/components/ui/PlantaCrecimiento'
+import { NotificationSetup } from '@/components/ui/NotificationSetup'
+import { useNotifications } from '@/lib/useNotifications'
 import { SiriusDB, TimeRecord } from '@/lib/supabase'
 import { calculateWorkHours } from '@/lib/utils'
 import { 
@@ -29,6 +31,7 @@ interface DashboardStats {
 export default function DashboardPage() {
   const { employee, logout, isLoading } = useAuth()
   const router = useRouter()
+  const { setupWorkdayReminders, notifyAchievement, permission } = useNotifications()
   
   const [stats, setStats] = useState<DashboardStats>({
     horasHoy: 0,
@@ -156,6 +159,20 @@ export default function DashboardPage() {
       
       if (registro) {
         setMessage({ text: mensajeMotivacional, type: 'success' })
+        
+        // Configurar notificaciones automáticas cuando se registre entrada
+        if (tipo === 'entrada' && permission === 'granted') {
+          setupWorkdayReminders()
+        }
+        
+        // Notificaciones de logros para eventos importantes
+        if (permission === 'granted') {
+          if (tipo === 'entrada') {
+            notifyAchievement('¡Has iniciado un nuevo día de crecimiento! 🌱')
+          } else if (tipo === 'salida') {
+            notifyAchievement('¡Jornada completada con éxito! Has cuidado tu bienestar 🌟')
+          }
+        }
         
         // Mostrar celebración para ciertos eventos
         if (tipo === 'entrada' || tipo === 'salida') {
@@ -364,6 +381,15 @@ export default function DashboardPage() {
               Días consecutivos de bienestar
             </p>
           </div>
+        </motion.div>
+
+        {/* Sistema de notificaciones */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.6 }}
+        >
+          <NotificationSetup />
         </motion.div>
 
         {/* Botones de acción principales */}
