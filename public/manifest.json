@@ -1,0 +1,24 @@
+{
+  "name": "SIRIUS Regenerative - Control de Jornada Laboral",
+  "short_name": "SIRIUS",
+  "description": "Sistema de control de horas trabajadas con pausas activas. Transformando personas, regenerando el mundo.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#7FD1AE",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["productivity", "business", "utilities"],
+  "lang": "es",
+  "orientation": "portrait"
+} 
