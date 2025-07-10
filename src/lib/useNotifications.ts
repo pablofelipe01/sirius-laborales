@@ -15,16 +15,29 @@ interface ScheduledReminder {
   message?: string;
 }
 
+interface SiriusReminders {
+  scheduleWorkdayReminders: () => void;
+  notifyAchievement: (message: string) => void;
+}
+
 export const useNotifications = () => {
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [serviceWorkerRegistration, setServiceWorkerRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [isSupported, setIsSupported] = useState(false);
+  const [useVisualFallback, setUseVisualFallback] = useState(false);
 
   // Verificar soporte y registrar service worker
   useEffect(() => {
     const checkSupport = () => {
       const supported = 'serviceWorker' in navigator && 'Notification' in window;
+      
+      // Detectar Safari/iOS para usar fallback visual
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const shouldUseFallback = isSafari || isIOS || !supported;
+      
       setIsSupported(supported);
+      setUseVisualFallback(shouldUseFallback);
       return supported;
     };
 
@@ -132,6 +145,17 @@ export const useNotifications = () => {
 
   // Notificar logro inmediatamente
   const notifyAchievement = useCallback((message: string) => {
+    // Usar recordatorios visuales si es Safari/iOS o no hay soporte nativo
+    if (useVisualFallback) {
+      if (typeof window !== 'undefined') {
+        const windowWithReminders = window as typeof window & { siriusReminders?: SiriusReminders };
+        if (windowWithReminders.siriusReminders) {
+          windowWithReminders.siriusReminders.notifyAchievement(message);
+        }
+      }
+      return;
+    }
+
     if (!serviceWorkerRegistration) {
       // Fallback a notificación normal si no hay SW
       showNotification({
@@ -147,10 +171,22 @@ export const useNotifications = () => {
       type: 'NOTIFY_LOGRO',
       data: { message }
     });
-  }, [serviceWorkerRegistration, showNotification]);
+  }, [useVisualFallback, serviceWorkerRegistration, showNotification]);
 
   // Programar recordatorios automáticos para la jornada laboral
   const setupWorkdayReminders = useCallback(() => {
+    // Usar recordatorios visuales si es Safari/iOS o no hay soporte nativo
+    if (useVisualFallback) {
+      if (typeof window !== 'undefined') {
+        const windowWithReminders = window as typeof window & { siriusReminders?: SiriusReminders };
+        if (windowWithReminders.siriusReminders) {
+          windowWithReminders.siriusReminders.scheduleWorkdayReminders();
+          console.log('Recordatorios visuales configurados para Safari/iOS');
+        }
+      }
+      return;
+    }
+    
     if (!isSupported || permission !== 'granted') return;
     
     // Pausa activa cada 2 horas desde la entrada
@@ -175,7 +211,7 @@ export const useNotifications = () => {
     });
 
     console.log('Recordatorios de jornada laboral configurados');
-  }, [isSupported, permission, scheduleReminder]);
+  }, [useVisualFallback, isSupported, permission, scheduleReminder]);
 
   // Mensajes motivacionales para notificaciones
   const getMotivationalMessage = (type: string): string => {
@@ -207,6 +243,7 @@ export const useNotifications = () => {
   return {
     permission,
     isSupported,
+    useVisualFallback,
     requestPermission,
     showNotification,
     scheduleReminder,

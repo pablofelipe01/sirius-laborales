@@ -8,6 +8,7 @@ import { SiriusButton, TimeActionButton } from '@/components/ui/SiriusButton'
 import { SaludoAnimado, MensajeRapido } from '@/components/ui/SaludoAnimado'
 import { PlantaCrecimiento } from '@/components/ui/PlantaCrecimiento'
 import { NotificationSetup } from '@/components/ui/NotificationSetup'
+import { VisualReminders } from '@/components/ui/VisualReminders'
 import { useNotifications } from '@/lib/useNotifications'
 import { SiriusDB, TimeRecord } from '@/lib/supabase'
 import { calculateWorkHours } from '@/lib/utils'
@@ -31,7 +32,7 @@ interface DashboardStats {
 export default function DashboardPage() {
   const { employee, logout, isLoading } = useAuth()
   const router = useRouter()
-  const { setupWorkdayReminders, notifyAchievement, permission } = useNotifications()
+  const { setupWorkdayReminders, notifyAchievement, permission, useVisualFallback } = useNotifications()
   
   const [stats, setStats] = useState<DashboardStats>({
     horasHoy: 0,
@@ -498,6 +499,9 @@ export default function DashboardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* Sistema de recordatorios visuales para Safari/iOS */}
+      <VisualReminders enabled={useVisualFallback} />
 
       {/* Celebración */}
       <AnimatePresence>
