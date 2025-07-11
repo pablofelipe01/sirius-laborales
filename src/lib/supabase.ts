@@ -518,7 +518,7 @@ export class SiriusDB {
     horasEstimadas: number
     motivo: string
     justificacion: string
-  }): Promise<{ success: boolean; message: string; data?: any }> {
+  }): Promise<{ success: boolean; message: string; data?: OvertimeRequest }> {
     try {
       // Verificar si ya existe una solicitud para hoy
       const { data: existingRequest } = await supabase
@@ -1242,8 +1242,10 @@ export class SiriusDB {
       })
       
       // Si aún está trabajando, calcular hasta ahora
-      if (currentStatus === 'working' && startTime) {
-        totalHours += (new Date().getTime() - startTime.getTime()) / (1000 * 60 * 60)
+      if (currentStatus === 'working' && startTime !== null && startTime !== undefined) {
+        const currentTime = new Date();
+        const workStartTime = startTime as Date;
+        totalHours += (currentTime.getTime() - workStartTime.getTime()) / (1000 * 60 * 60);
       }
       
       const maxRegularHours = 8
