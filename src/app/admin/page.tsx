@@ -116,7 +116,7 @@ export default function AdminDashboard() {
       icon: <Clock className="w-8 h-8" />,
       color: 'sirius-sky-main',
       route: '/admin/horas',
-      stats: `${stats.horasDelDia}h hoy`
+      stats: `${stats.horasDelDia}h equipo`
     },
     {
       id: 'nomina',
@@ -319,7 +319,7 @@ export default function AdminDashboard() {
                 <Clock className="w-5 h-5 text-sirius-sky-main" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Horas del Día</p>
+                <p className="text-sm text-gray-600">Horas del Equipo</p>
                 <p className="text-xl font-bold text-gray-800">{stats.horasDelDia}h</p>
               </div>
             </div>

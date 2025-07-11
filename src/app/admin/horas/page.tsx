@@ -142,7 +142,7 @@ export default function ControlHorasAdmin() {
       bgColor: 'bg-sirius-green-main/20'
     },
     {
-      title: 'Horas Totales',
+      title: 'Horas del Equipo',
       value: `${empleadosActivos.reduce((sum, e) => sum + e.horasHoy, 0).toFixed(1)}h`,
       icon: <Clock className="w-6 h-6 text-sirius-sky-main" />,
       bgColor: 'bg-sirius-sky-main/20'
