@@ -54,8 +54,8 @@ async function testDatabaseConnection() {
   try {
     const { data, error } = await supabase
       .from('employees')
-      .select('COUNT(*)')
-      .single()
+      .select('id')
+      .limit(1)
     
     if (error) {
       log.error(`Error de conexión: ${error.message}`)
