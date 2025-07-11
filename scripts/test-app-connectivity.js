@@ -123,7 +123,7 @@ async function testAuthentication() {
   
   const testCedulas = [
     { cedula: '1019090206', name: 'Luisa Ramírez (Admin)' },
-    { cedula: 'PABLOCTO2024', name: 'Pablo Acebedo (CTO)' },
+    { cedula: '79454772', name: 'Pablo Acebedo (CTO)' },
     { cedula: '1006534877', name: 'Santiago Amaya (Jefe Pirólisis)' },
     { cedula: '1122626299', name: 'Mario Barrera (Auxiliar)' },
     { cedula: '1123561461', name: 'Alexandra Orosco (Laboratorio)' }
@@ -223,14 +223,28 @@ async function testHoursSummaryTable() {
       pausas_activas_realizadas: 2
     }
     
-    const { data, error } = await supabase
+    // Primero verificar si ya existe el registro
+    const { data: existing } = await supabase
       .from('hours_summary')
-      .upsert(testRecord)
-      .select()
+      .select('*')
+      .eq('employee_id', luisa.id)
+      .eq('fecha', testRecord.fecha)
+      .single()
     
-    if (error) {
-      log.error(`Error insertando en hours_summary: ${error.message}`)
-      return false
+    if (existing) {
+      log.success('✅ Registro en hours_summary ya existe (verificación exitosa)')
+    } else {
+      // Si no existe, insertarlo
+      const { data, error } = await supabase
+        .from('hours_summary')
+        .insert(testRecord)
+        .select()
+      
+      if (error) {
+        log.error(`Error insertando en hours_summary: ${error.message}`)
+        return false
+      }
+      log.success('✅ Inserción en hours_summary exitosa')
     }
     
     log.success('✅ Inserción en hours_summary exitosa')

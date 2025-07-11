@@ -2,18 +2,20 @@
 
 > *Transformando personas, regenerando el mundo*
 
-Una aplicación web moderna para el control de horas trabajadas con enfoque en bienestar y pausas activas. Desarrollada con Next.js 14+ y TypeScript.
+Una aplicación web moderna para el control de horas trabajadas con enfoque en bienestar y pausas activas. Desarrollada con Next.js 14+ y TypeScript para **SIRIUS Regenerative SAS Zomac**.
 
 ## ✨ Características
 
 ### 🎯 Funcionalidades Principales
 - **Autenticación por cédula de ciudadanía**
 - **Control de jornada laboral** (entrada, almuerzo, salida)
+- **Sistema de quincenas SIRIUS** para reportes de nómina
+- **Cálculo automático de recargos** según legislación laboral colombiana 2025
 - **Pausas activas guiadas** con meditaciones regenerativas
 - **Gamificación del bienestar** con jardín virtual personal
 - **Dashboard administrativo** estilo jardín para supervisores
 - **Notificaciones web push** para recordatorios amigables
-- **Cumplimiento legal** de la reforma laboral colombiana 2025
+- **Reportes de nómina** con períodos quincenales personalizados
 
 ### 🌿 Personalidad SIRIUS
 - **Deliberadamente humana**: Cálida y alegre
@@ -21,6 +23,13 @@ Una aplicación web moderna para el control de horas trabajadas con enfoque en b
 - **Transformadora**: Creemos en la regeneración personal
 - **Ligera**: No nos tomamos todo demasiado en serio
 - **Alegre**: Brindamos alegría al día de las personas
+
+### ⚖️ Cumplimiento Legal Colombiano
+- **18 festivos nacionales** configurados (2025-2030)
+- **Cálculo automático de recargos**: nocturnos, dominicales, festivos
+- **Horas extra** con recargos del 25% diurno, 75% nocturno
+- **Períodos de quincenas SIRIUS** específicos para nómina
+- **Auditoría completa** de horas trabajadas por empleado
 
 ## 🚀 Stack Tecnológico
 
@@ -72,8 +81,8 @@ VAPID_PRIVATE_KEY=tu_vapid_private_key
 # Configuración local
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Cédula de administrador (Luisa)
-ADMIN_CEDULA=12345678
+# Cédula de administrador (Luisa Ramírez)
+ADMIN_CEDULA=1019090206
 
 # Variables de marca
 NEXT_PUBLIC_COMPANY_NAME="SIRIUS Regenerative"
@@ -87,12 +96,19 @@ NEXT_PUBLIC_COMPANY_TAGLINE="Transformando personas, regenerando el mundo"
 2. Crear nuevo proyecto
 3. Copiar URL y clave anónima a `.env.local`
 
-#### 4.2 Ejecutar migraciones
+#### 4.2 Ejecutar migraciones y scripts
 ```bash
 # En el SQL Editor de Supabase, ejecutar en orden:
 # 1. supabase/migrations/001_initial_schema.sql
-# 2. supabase/migrations/002_seed_data.sql
+# 2. scripts/cleanup-and-fix-data.sql
+# 3. scripts/real-employees-data.sql
 ```
+
+#### 4.3 Verificar instalación
+```bash
+npm run test-system
+```
+Deberías ver: **✅ 🎯 TODOS LOS TESTS PASARON (7/7)**
 
 ### 5. Ejecutar en desarrollo
 ```bash
@@ -101,16 +117,20 @@ npm run dev
 
 La aplicación estará disponible en `http://localhost:3000`
 
-## 👥 Usuarios de Prueba
+## 👥 Empleados SIRIUS Regenerative
 
-La aplicación viene con empleados de ejemplo:
+### Equipo Real Configurado
 
-| Nombre | Cédula | Rol | Emoji |
-|--------|--------|-----|-------|
-| Luisa González | `12345678` | Administradora | 🌻 |
-| Juan Carlos Pérez | `23456789` | Empleado | 🌱 |
-| María Elena Rodríguez | `34567890` | Empleado | 🌿 |
-| Carlos Alberto Sánchez | `45678901` | Empleado | 🌳 |
+| Nombre | Cédula | Cargo | Departamento | Salario/Hora |
+|--------|--------|-------|--------------|--------------|
+| Luisa Ramírez | `1019090206` | Coordinadora líder en gestión del ser | Administrativo | $26,956.52 |
+| Pablo Acebedo | `79454772` | CTO | Tecnología | $39,130.00 |
+| Alejandro Uricoechea | `1018497693` | Director Financiero | Administrativo | $34,782.61 |
+| Santiago Amaya | `1006534877` | Jefe de pirólisis | Pirólisis | $12,225.39 |
+| Alexandra Orosco | `1123561461` | Auxiliar operativa | Laboratorio | $8,260.87 |
+| *+ 9 empleados más* | | | | |
+
+**Total**: 14 empleados en 5 departamentos
 
 ## 🎨 Guía de Uso
 
@@ -129,10 +149,28 @@ La aplicación viene con empleados de ejemplo:
 
 ### Para Administradores
 
-- Acceso con cédula de admin (`12345678`)
-- Dashboard estilo jardín con vista de todo el equipo
-- Métricas de bienestar y productividad
-- Aprobación de solicitudes de horas extra
+- **Acceso con cédula de admin** (`1019090206` - Luisa Ramírez)
+- **Dashboard estilo jardín** con vista de todo el equipo
+- **Control de horas**: Ver estado en tiempo real de empleados
+- **Reportes de nómina**: Sistema de quincenas SIRIUS
+- **Gestión de empleados**: Información detallada por departamento
+- **Métricas de bienestar** y productividad
+
+### Sistema de Quincenas SIRIUS
+
+El sistema incluye **24 quincenas predefinidas para 2025** con fechas específicas de SIRIUS:
+
+- **Quincena 1 (Enero)**: 8-23 enero
+- **Quincena 2 (Febrero)**: 7-21 febrero  
+- **Quincena 3 (Marzo)**: 7-19 marzo
+- **Y así sucesivamente...**
+
+**Funcionalidades de quincenas:**
+- Navegación por todas las quincenas del año
+- Cálculo automático de horas y pagos por período
+- Filtros por departamento y empleado
+- Exportación de datos para nómina
+- Comparativos entre quincenas
 
 ## 🏗️ Estructura del Proyecto
 
@@ -141,16 +179,27 @@ jornada-laboral-sirius/
 ├── src/
 │   ├── app/                    # App Router de Next.js
 │   │   ├── login/              # Página de autenticación
-│   │   ├── dashboard/          # Dashboard principal
+│   │   ├── dashboard/          # Dashboard principal empleados
 │   │   ├── pausa-activa/       # Pausas activas guiadas
 │   │   ├── admin/              # Panel administrativo
+│   │   │   ├── horas/          # Control de horas en tiempo real
+│   │   │   ├── empleados/      # Gestión de empleados
+│   │   │   ├── nomina/         # Cálculos de nómina
+│   │   │   └── quincenas/      # Reportes por quincenas
 │   │   └── globals.css         # Estilos globales
 │   ├── components/             # Componentes reutilizables
 │   │   └── ui/                 # Componentes UI de SIRIUS
 │   ├── contexts/               # Contextos de React
 │   └── lib/                    # Utilidades y configuración
+│       ├── supabase.ts         # Cliente y funciones de BD
+│       ├── quincenas-sirius.ts # Sistema de quincenas
+│       └── colombia-holidays.ts # Festivos colombianos
 ├── supabase/
 │   └── migrations/             # Esquemas de base de datos
+├── scripts/                    # Scripts de configuración
+│   ├── real-employees-data.sql # Datos reales de empleados
+│   ├── cleanup-and-fix-data.sql # Limpieza de BD
+│   └── test-app-connectivity.js # Tests del sistema
 ├── tailwind.config.ts          # Configuración de Tailwind
 └── README.md
 ```
@@ -158,24 +207,29 @@ jornada-laboral-sirius/
 ## 🎯 Funcionalidades Implementadas
 
 ### ✅ Core Features
-- [x] Autenticación por cédula
-- [x] Dashboard personalizado
+- [x] Autenticación por cédula (14 empleados reales)
+- [x] Dashboard personalizado para empleados
+- [x] Dashboard administrativo completo
 - [x] Registro de tiempo (entrada/almuerzo/salida)
-- [x] Cálculo automático de horas trabajadas
-- [x] Mensajes motivacionales aleatorios
+- [x] Cálculo automático de horas con recargos legales
+- [x] Sistema de quincenas SIRIUS para nómina
+- [x] 18 festivos colombianos (2025-2030)
+- [x] Control de horas en tiempo real (admin)
+- [x] Gestión de empleados por departamento
+- [x] Reportes de nómina exportables
 - [x] Gamificación con jardín virtual
 - [x] Componentes UI con personalidad SIRIUS
 - [x] Animaciones orgánicas
-- [x] Base de datos completa
+- [x] Base de datos completa y optimizada
 
 ### 🚧 Próximas Funcionalidades
 - [ ] Pausas activas con audio guiado
-- [ ] Dashboard administrativo completo
 - [ ] Notificaciones web push
 - [ ] Solicitudes de horas extra
-- [ ] Reportes y analytics
 - [ ] PWA (Progressive Web App)
 - [ ] Sistema de logros avanzado
+- [ ] Analytics avanzado
+- [ ] Integración con sistemas de nómina externos
 
 ## 🎨 Paleta de Colores SIRIUS
 
@@ -204,16 +258,61 @@ jornada-laboral-sirius/
 ## 📊 Base de Datos
 
 ### Tablas Principales
-- **employees**: Información de empleados con personalización
+- **employees**: 14 empleados reales con salarios y departamentos
 - **time_records**: Registros de tiempo con mensajes motivacionales
+- **hours_summary**: Resúmenes diarios con cálculos de recargos
+- **holidays**: 18 festivos colombianos (2025-2030)
 - **active_breaks**: Pausas activas para bienestar
 - **motivational_messages**: Mensajes con personalidad SIRIUS
 - **achievements**: Sistema de logros y gamificación
 - **overtime_requests**: Solicitudes de horas extra
 
+### Funciones SQL Implementadas
+- **calculate_pay()**: Cálculo de pagos con recargos legales
+- **is_holiday()**: Verificación de festivos
+- **get_weekly_hours()**: Horas semanales por empleado
+
+## 🧪 Testing
+
+El sistema incluye un suite completo de tests:
+
+```bash
+npm run test-system
+```
+
+**Tests incluidos:**
+1. ✅ Conectividad de base de datos
+2. ✅ Verificación de empleados reales (14 empleados)
+3. ✅ Pruebas de autenticación (5 empleados test)
+4. ✅ Verificación de festivos colombianos (18 festivos)
+5. ✅ Verificación de tabla hours_summary
+6. ✅ Verificación de cálculos de salarios
+7. ✅ Verificación de variables de entorno
+
+**Resultado esperado**: 🎯 **TODOS LOS TESTS PASARON (7/7)**
+
+## 🚀 Deploy a Producción
+
+### Vercel (Recomendado)
+
+1. **Conectar repositorio a Vercel**
+2. **Configurar variables de entorno** en Vercel Dashboard
+3. **Deploy automático** desde main branch
+
+### Variables de entorno para producción
+```env
+NEXT_PUBLIC_SUPABASE_URL=tu_supabase_url_produccion
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_supabase_key_produccion
+ADMIN_CEDULA=1019090206
+NEXT_PUBLIC_COMPANY_NAME="SIRIUS Regenerative"
+NEXT_PUBLIC_COMPANY_TAGLINE="Transformando personas, regenerando el mundo"
+```
+
 ## 🤝 Contribuir
 
-1. Fork el proyecto
+### Para Desarrolladores Autorizados
+
+1. Fork el proyecto (solo desarrolladores autorizados por SIRIUS Regenerative)
 2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
 3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
 4. Push a la rama (`git push origin feature/AmazingFeature`)
@@ -226,36 +325,84 @@ jornada-laboral-sirius/
 - **Performance optimizada**: Animaciones fluidas sin comprometer velocidad
 - **Mobile-first**: Responsive en todos los dispositivos
 - **Código limpio**: TypeScript estricto y componentes reutilizables
+- **Compliance legal**: Cumplimiento estricto de legislación laboral colombiana
 
-## 📝 Licencia
+## 📄 Licencia y Derechos de Autor
 
-Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+### 🏢 Propiedad Intelectual
+
+Este software es **propiedad exclusiva** de:
+
+**SIRIUS Regenerative SAS Zomac**  
+*Transformando personas, regenerando el mundo*
+
+### 👨‍💻 Derechos de Autor
+
+**Desarrollador y Titular de Derechos Intelectuales:**  
+**Pablo Felipe Acevedo Cuellar**  
+**Cédula de Ciudadanía:** 79.454.772  
+**Cargo:** Chief Technology Officer (CTO)
+
+### ⚖️ Términos de Licencia
+
+- ❌ **Este software NO es de código abierto**
+- ❌ **Prohibida la redistribución sin autorización**
+- ❌ **Prohibido el uso comercial por terceros**
+- ❌ **Prohibida la modificación sin autorización**
+- ✅ **Uso exclusivo para SIRIUS Regenerative SAS Zomac**
+- ✅ **Solo empleados autorizados pueden acceder al código**
+
+### 📜 Declaración Legal
+
+> *Este sistema de software, incluyendo pero no limitándose a su código fuente, diseño, arquitectura, funcionalidades, base de datos, y documentación, es propiedad intelectual exclusiva de **Pablo Felipe Acevedo Cuellar** (CC: 79.454.772) y está licenciado únicamente para uso de **SIRIUS Regenerative SAS Zomac**.*
+
+> *Cualquier uso, modificación, distribución o reproducción no autorizada constituye una violación de los derechos de autor y estará sujeta a acciones legales correspondientes.*
+
+### 🛡️ Protección de Datos
+
+Este sistema maneja información sensible de empleados y debe cumplir con:
+- **Ley de Protección de Datos Personales** (Ley 1581 de 2012 - Colombia)
+- **Políticas internas de SIRIUS Regenerative**
+- **Normativas laborales colombianas**
+
+---
 
 ## 🌟 Créditos
 
-Desarrollado con ❤️ por el equipo de SIRIUS Regenerative
+### 💻 Desarrollo Técnico
+**Pablo Felipe Acevedo Cuellar** - *CTO & Lead Developer*  
+📧 pablo@siriusregenerative.com  
+🆔 CC: 79.454.772
 
-### Inspiración
+### 🌱 Equipo SIRIUS Regenerative
+- **Luisa Ramírez** - *Coordinadora líder en gestión del ser*
+- **Alejandro Uricoechea** - *Director Financiero*
+- **Santiago Amaya** - *Jefe de pirólisis*
+- **Y todo el increíble equipo de 14 personas**
+
+### 💡 Inspiración
 - Diseño biomimético inspirado en la naturaleza
 - Principios de bienestar laboral
 - Cultura organizacional regenerativa
 - Experiencia de usuario centrada en emociones positivas
+- Cumplimiento riguroso de legislación laboral colombiana
 
 ---
 
 *"Como las plantas necesitan cuidado para crecer, las personas necesitan pausas para florecer"* 🌱
 
-## 📞 Soporte
+## 📞 Soporte Técnico
 
-¿Tienes preguntas o necesitas ayuda?
+### Para Empleados SIRIUS
+Si tienes problemas con el sistema, contacta:
+- **Soporte interno**: Luisa Ramírez o Pablo Acebedo
+- **Issues técnicos**: Reportar a desarrollo
 
-- 📧 Email: soporte@sirius-regenerative.com
-- 🐛 Issues: [GitHub Issues](./issues)
-- 📚 Documentación: [Wiki del proyecto](./wiki)
+### Para Administradores del Sistema
+- **CTO**: Pablo Felipe Acevedo Cuellar
+- **Coordinación**: Luisa Ramírez
 
 ---
 
-**¡Gracias por usar SIRIUS Regenerative!** 🌟
-
-Recuerda: Cada día es una nueva oportunidad de crecer 🌱
-# sirius-laborales
+**© 2025 SIRIUS Regenerative SAS Zomac - Todos los derechos reservados**  
+**Desarrollado por Pablo Felipe Acevedo Cuellar (CC: 79.454.772)**
