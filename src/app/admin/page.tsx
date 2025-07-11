@@ -128,6 +128,15 @@ export default function AdminDashboard() {
       stats: `$${stats.nominaMensual.toLocaleString()}`
     },
     {
+      id: 'quincenas',
+      title: 'Reportes por Quincenas',
+      description: 'Acumulados según calendario SIRIUS',
+      icon: <Calendar className="w-8 h-8" />,
+      color: 'sirius-green-dark',
+      route: '/admin/quincenas',
+      stats: 'Nómina quincenal'
+    },
+    {
       id: 'calendarios',
       title: 'Calendario y Festivos',
       description: 'Gestionar días especiales',

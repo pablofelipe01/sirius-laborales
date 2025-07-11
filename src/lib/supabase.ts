@@ -898,4 +898,193 @@ export class SiriusDB {
       }
     }
   }
+
+  // ========== SISTEMA DE QUINCENAS SIRIUS ==========
+
+  // Obtener acumulado de una quincena específica para todos los empleados
+  static async getQuincenaReport(quincenaId: string) {
+    try {
+      const { getRangoQuincena } = await import('./quincenas-sirius')
+      const rango = getRangoQuincena(quincenaId)
+      
+      if (!rango) {
+        throw new Error(`Quincena ${quincenaId} no encontrada`)
+      }
+      
+      // Obtener todos los empleados con sus acumulados de la quincena
+      const { data: empleados, error } = await supabase
+        .from('employees')
+        .select(`
+          id,
+          cedula,
+          nombre,
+          apodo,
+          cargo,
+          departamento,
+          salario
+        `)
+        .eq('activo', true)
+        .order('nombre')
+      
+      if (error) {
+        console.error('Error obteniendo empleados:', error)
+        return []
+      }
+      
+      // Para cada empleado, calcular su acumulado en la quincena
+      const reporteQuincena = await Promise.all(
+        empleados.map(async (emp) => {
+          // Obtener resúmenes de horas de la quincena
+          const { data: horasQuincena } = await supabase
+            .from('hours_summary')
+            .select('*')
+            .eq('employee_id', emp.id)
+            .gte('fecha', rango.inicio)
+            .lte('fecha', rango.fin)
+            .order('fecha')
+          
+          // Calcular totales
+          const totalHoras = horasQuincena?.reduce((acc, h) => acc + h.total_horas, 0) || 0
+          const totalPago = horasQuincena?.reduce((acc, h) => acc + h.total_pago, 0) || 0
+          const horasOrdinarias = horasQuincena?.reduce((acc, h) => acc + h.horas_ordinarias, 0) || 0
+          const horasExtras = horasQuincena?.reduce((acc, h) => 
+            acc + h.horas_extra_diurnas + h.horas_extra_nocturnas, 0) || 0
+          const horasNocturnas = horasQuincena?.reduce((acc, h) => acc + h.horas_nocturnas, 0) || 0
+          const horasDominicales = horasQuincena?.reduce((acc, h) => 
+            acc + h.horas_dominicales_diurnas + h.horas_dominicales_nocturnas, 0) || 0
+          const horasFestivas = horasQuincena?.reduce((acc, h) => 
+            acc + h.horas_festivas_diurnas + h.horas_festivas_nocturnas, 0) || 0
+          const pausasActivas = horasQuincena?.reduce((acc, h) => acc + h.pausas_activas_realizadas, 0) || 0
+          
+          const diasTrabajados = horasQuincena?.length || 0
+          
+          return {
+            empleado: emp,
+            quincenaId,
+            totalHoras,
+            totalPago,
+            horasOrdinarias,
+            horasExtras,
+            horasNocturnas,
+            horasDominicales,
+            horasFestivas,
+            pausasActivas,
+            diasTrabajados,
+            detalleDias: horasQuincena || []
+          }
+        })
+      )
+      
+      return reporteQuincena
+    } catch (error) {
+      console.error('Error obteniendo reporte de quincena:', error)
+      return []
+    }
+  }
+
+  // Obtener resumen general de una quincena
+  static async getQuincenaSummary(quincenaId: string) {
+    try {
+      const reporte = await this.getQuincenaReport(quincenaId)
+      
+      const totalEmpleados = reporte.length
+      const empleadosActivos = reporte.filter(r => r.totalHoras > 0).length
+      const totalHorasEquipo = reporte.reduce((acc, r) => acc + r.totalHoras, 0)
+      const totalPagoEquipo = reporte.reduce((acc, r) => acc + r.totalPago, 0)
+      const totalPausasActivas = reporte.reduce((acc, r) => acc + r.pausasActivas, 0)
+      
+      // Promedios
+      const promedioHorasPorEmpleado = empleadosActivos > 0 ? totalHorasEquipo / empleadosActivos : 0
+      const promedioPagoPorEmpleado = empleadosActivos > 0 ? totalPagoEquipo / empleadosActivos : 0
+      
+      // Estadísticas por departamento
+      const estatsPorDepartamento = reporte.reduce((acc, r) => {
+        const dept = r.empleado.departamento
+        if (!acc[dept]) {
+          acc[dept] = {
+            empleados: 0,
+            totalHoras: 0,
+            totalPago: 0,
+            empleadosActivos: 0
+          }
+        }
+        
+        acc[dept].empleados++
+        acc[dept].totalHoras += r.totalHoras
+        acc[dept].totalPago += r.totalPago
+        if (r.totalHoras > 0) acc[dept].empleadosActivos++
+        
+        return acc
+      }, {} as Record<string, {
+        empleados: number
+        totalHoras: number
+        totalPago: number
+        empleadosActivos: number
+      }>)
+      
+      return {
+        quincenaId,
+        totalEmpleados,
+        empleadosActivos,
+        totalHorasEquipo,
+        totalPagoEquipo,
+        totalPausasActivas,
+        promedioHorasPorEmpleado,
+        promedioPagoPorEmpleado,
+        estatsPorDepartamento,
+        empleados: reporte
+      }
+    } catch (error) {
+      console.error('Error obteniendo resumen de quincena:', error)
+      return null
+    }
+  }
+
+  // Obtener comparativo de quincenas
+  static async getComparativoQuincenas(quincenaIds: string[]) {
+    try {
+      const comparativo = await Promise.all(
+        quincenaIds.map(async (id) => {
+          const summary = await this.getQuincenaSummary(id)
+          return summary
+        })
+      )
+      
+      return comparativo.filter(Boolean)
+    } catch (error) {
+      console.error('Error obteniendo comparativo de quincenas:', error)
+      return []
+    }
+  }
+
+  // Obtener ranking de empleados en una quincena
+  static async getRankingQuincena(quincenaId: string, criterio: 'horas' | 'pago' | 'pausas' = 'horas') {
+    try {
+      const reporte = await this.getQuincenaReport(quincenaId)
+      
+      const ranking = reporte
+        .filter(r => r.totalHoras > 0) // Solo empleados que trabajaron
+        .sort((a, b) => {
+          switch (criterio) {
+            case 'horas':
+              return b.totalHoras - a.totalHoras
+            case 'pago':
+              return b.totalPago - a.totalPago
+            case 'pausas':
+              return b.pausasActivas - a.pausasActivas
+            default:
+              return b.totalHoras - a.totalHoras
+          }
+        })
+        .map((r, index) => ({
+          posicion: index + 1,
+          ...r
+        }))
+      
+      return ranking
+    } catch (error) {
+      console.error('Error obteniendo ranking de quincena:', error)
+      return []
+    }
+  }
 } 
