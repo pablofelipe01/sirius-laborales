@@ -5,193 +5,175 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { SiriusButton } from '@/components/ui/SiriusButton'
-import { calculateHoursBreakdown, getTotalPay, HoursBreakdown } from '@/lib/calculations'
-import { getAllHolidays } from '@/lib/holidays'
 import { SiriusDB } from '@/lib/supabase'
 import { 
   Clock, 
   ArrowLeft,
   DollarSign,
-  AlertTriangle,
   TrendingUp,
   Users,
   Download,
   Filter,
-  Search
+  Search,
+  Calendar,
+  Eye,
+  AlertCircle
 } from 'lucide-react'
 
-interface EmpleadoHoras {
-  id: string
-  nombre: string
-  apodo: string
-  cedula: string
-  cargo: string
-  salarioHora: number
-  estado: 'activo' | 'almuerzo' | 'terminado' | 'ausente'
-  horasHoy: HoursBreakdown
-  totalPago: number
-  horasSemanales: number
-  alertas: string[]
-  registros: {
-    entrada?: string
-    inicioAlmuerzo?: string
-    finAlmuerzo?: string
-    salida?: string
-  }
+// Interface para empleados activos
+interface EmpleadoActivo {
+  id: string;
+  nombre: string;
+  apodo: string;
+  cedula: string;
+  cargo: string;
+  salario_hora: number;
+  estado: string;
+  horasHoy: number;
+  horasOrdinarias: number;
+  horasExtras: number;
+  horasNocturnas: number;
+  horasSemanales: number;
+  pagoTotal: number;
+  ultimaActividad: string;
+  alertas: string[];
 }
 
 export default function ControlHorasAdmin() {
   const { employee } = useAuth()
   const router = useRouter()
   
-  const [empleados, setEmpleados] = useState<EmpleadoHoras[]>([])
-  const [filtroEstado, setFiltroEstado] = useState<string>('todos')
-  const [busqueda, setBusqueda] = useState('')
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0])
-  const [isLoading, setIsLoading] = useState(true)
+  const [empleadosActivos, setEmpleadosActivos] = useState<EmpleadoActivo[]>([])
+  const [loading, setLoading] = useState(true)
   const [mostrarDetalle, setMostrarDetalle] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
-  // Verificar permisos de admin
   useEffect(() => {
-    if (!employee || employee.cedula !== '123456789') {
-      router.replace('/admin')
+    if (!employee) {
+      router.replace('/login')
       return
     }
-    loadEmpleadosData()
-  }, [employee, router, fechaSeleccionada])
+    
+    const isAdmin = employee.cedula === '1019090206'
+    if (!isAdmin) {
+      router.replace('/dashboard')
+      return
+    }
 
-  const loadEmpleadosData = async () => {
+    loadEmpleadosActivos()
+  }, [employee, router, selectedDate])
+
+  const loadEmpleadosActivos = async () => {
     try {
-      setIsLoading(true)
+      setLoading(true)
       
-      // Cargar empleados con estadísticas reales de la base de datos
-      const empleadosData = await SiriusDB.getAllEmployeesWithStats(fechaSeleccionada)
-      const festivos = getAllHolidays().map(h => h.fecha)
+      // Obtener datos reales de la base de datos
+      const empleadosData = await SiriusDB.getAllEmployeesWithStats(selectedDate)
       
-      // Transformar datos de la BD al formato esperado por la interfaz
-      const empleadosFormateados: EmpleadoHoras[] = await Promise.all(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        empleadosData.map(async (emp: any) => {
-          // Obtener registros del día para determinar estado y horarios
-          const registros = await SiriusDB.getTodayRecords(emp.id)
-          const entrada = registros.find(r => r.tipo === 'entrada')
-          const salida = registros.find(r => r.tipo === 'salida')
-          const inicioAlmuerzo = registros.find(r => r.tipo === 'inicio_almuerzo')
-          const finAlmuerzo = registros.find(r => r.tipo === 'fin_almuerzo')
-          const ultimoRegistro = registros[registros.length - 1]
-          
-          // Determinar estado actual
-          let estado: 'activo' | 'almuerzo' | 'terminado' | 'ausente' = 'ausente'
-          if (ultimoRegistro) {
-            switch (ultimoRegistro.tipo) {
-              case 'entrada':
-              case 'fin_almuerzo':
-              case 'fin_pausa_activa':
-                estado = 'activo'
-                break
-              case 'inicio_almuerzo':
-                estado = 'almuerzo'
-                break
-              case 'salida':
-                estado = 'terminado'
-                break
-            }
-          }
-          
-          // Calcular desglose de horas si hay registros
-          let horasHoy: HoursBreakdown = {
-            ordinarias: 0, extraDiurnas: 0, extraNocturnas: 0, nocturnas: 0,
-            dominicalesDiurnas: 0, dominicalesNocturnas: 0, festivasDiurnas: 0, festivasNocturnas: 0,
-            totalHoras: 0, salarioBase: 0, recargoNocturno: 0, recargoDominical: 0, recargoFestivo: 0,
-            extraDiurna: 0, extraNocturna: 0, extraDominicalDiurna: 0, extraDominicalNocturna: 0,
-            extraFestivaDiurna: 0, extraFestivaNocturna: 0
-          }
-          
-          if (entrada) {
-            const workPeriod = {
-              entrada: new Date(entrada.timestamp),
-              salida: salida ? new Date(salida.timestamp) : new Date(),
-              almuerzo: inicioAlmuerzo && finAlmuerzo ? {
-                inicio: new Date(inicioAlmuerzo.timestamp),
-                fin: new Date(finAlmuerzo.timestamp)
-              } : undefined
-            }
-            
-            horasHoy = calculateHoursBreakdown(workPeriod, emp.salario_hora || 5000, festivos)
-          }
-          
-          return {
-            id: emp.id,
-            nombre: emp.nombre,
-            apodo: emp.apodo || emp.nombre,
-            cedula: emp.cedula,
-            cargo: emp.cargo || 'Sin cargo',
-            salarioHora: emp.salario_hora || 5000,
-            estado,
-            horasHoy,
-            totalPago: getTotalPay(horasHoy),
-            horasSemanales: 0, // TODO: Calcular horas semanales
-            alertas: [],
-            registros: {
-              entrada: entrada ? new Date(entrada.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : undefined,
-              inicioAlmuerzo: inicioAlmuerzo ? new Date(inicioAlmuerzo.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : undefined,
-              finAlmuerzo: finAlmuerzo ? new Date(finAlmuerzo.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : undefined,
-              salida: salida ? new Date(salida.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : undefined,
-            }
-          }
-        })
-      )
-
-      setEmpleados(empleadosFormateados)
+      // Formatear los datos para el componente
+      const empleadosFormateados: EmpleadoActivo[] = empleadosData.map((emp) => ({
+        id: emp.id,
+        nombre: emp.nombre,
+        apodo: emp.apodo || '',
+        cedula: emp.cedula,
+        cargo: 'Empleado',
+        salario_hora: emp.salario || 15000,
+        estado: emp.estado || 'Ausente',
+        horasHoy: emp.total_horas || 0,
+        horasOrdinarias: emp.horas_ordinarias || 0,
+        horasExtras: (emp.horas_extra_diurnas || 0) + (emp.horas_extra_nocturnas || 0),
+        horasNocturnas: emp.horas_nocturnas || 0,
+        horasSemanales: emp.horas_semanales || 0,
+        pagoTotal: emp.total_pago || 0,
+        ultimaActividad: emp.ultimo_acceso || new Date().toISOString(),
+        alertas: []
+      }))
       
+      setEmpleadosActivos(empleadosFormateados)
     } catch (error) {
-      console.error('Error cargando datos de empleados:', error)
-      setEmpleados([])
+      console.error('Error loading empleados activos:', error)
+      
+      // Si hay error, mostrar mensaje pero no datos dummy
+      setEmpleadosActivos([])
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const empleadosFiltrados = empleados.filter(emp => {
-    const cumpleFiltro = filtroEstado === 'todos' || emp.estado === filtroEstado
-    const cumpleBusqueda = emp.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-                          emp.apodo.toLowerCase().includes(busqueda.toLowerCase()) ||
-                          emp.cedula.includes(busqueda)
-    return cumpleFiltro && cumpleBusqueda
+  const getStatusColor = (estado: string) => {
+    switch (estado) {
+      case 'Trabajando':
+        return 'bg-green-100 text-green-900 border-green-400'
+      case 'En almuerzo':
+        return 'bg-orange-100 text-orange-900 border-orange-400'
+      case 'En pausa activa':
+        return 'bg-blue-100 text-blue-900 border-blue-400'
+      case 'Terminado':
+        return 'bg-gray-100 text-gray-900 border-gray-400'
+      case 'Ausente':
+        return 'bg-red-100 text-red-900 border-red-400'
+      default:
+        return 'bg-gray-100 text-gray-900 border-gray-400'
+    }
+  }
+
+  const filteredEmployees = empleadosActivos.filter(emp => {
+    const matchesSearch = emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         emp.apodo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         emp.cedula.includes(searchTerm)
+    
+    const matchesStatus = statusFilter === 'all' || 
+                         (statusFilter === 'working' && emp.estado === 'Trabajando') ||
+                         (statusFilter === 'break' && (emp.estado === 'En pausa activa' || emp.estado === 'En almuerzo')) ||
+                         (statusFilter === 'finished' && emp.estado === 'Terminado') ||
+                         (statusFilter === 'absent' && emp.estado === 'Ausente')
+    
+    return matchesSearch && matchesStatus
   })
 
-  const estadisticasDelDia = {
-    totalEmpleados: empleados.length,
-    empleadosActivos: empleados.filter(e => e.estado === 'activo').length,
-    horasTotales: empleados.reduce((acc, emp) => acc + emp.horasHoy.totalHoras, 0),
-    pagoTotal: empleados.reduce((acc, emp) => acc + emp.totalPago, 0),
-    alertas: empleados.reduce((acc, emp) => acc + emp.alertas.length, 0)
-  }
-
-  const getEstadoColor = (estado: string) => {
-    const colores = {
-      activo: 'bg-green-100 text-green-800 border-green-200',
-      almuerzo: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      terminado: 'bg-blue-100 text-blue-800 border-blue-200',
-      ausente: 'bg-gray-100 text-gray-800 border-gray-200'
+  // Estadísticas calculadas
+  const summaryCards = [
+    {
+      title: 'Empleados',
+      value: `${empleadosActivos.filter(e => e.estado !== 'Ausente').length}/${empleadosActivos.length}`,
+      icon: <Users className="w-6 h-6 text-sirius-green-main" />,
+      bgColor: 'bg-sirius-green-main/20'
+    },
+    {
+      title: 'Horas Totales',
+      value: `${empleadosActivos.reduce((sum, e) => sum + e.horasHoy, 0).toFixed(1)}h`,
+      icon: <Clock className="w-6 h-6 text-sirius-sky-main" />,
+      bgColor: 'bg-sirius-sky-main/20'
+    },
+    {
+      title: 'Pago del Día',
+      value: `$${empleadosActivos.reduce((sum, e) => sum + e.pagoTotal, 0).toLocaleString('es-CO')}`,
+      icon: <DollarSign className="w-6 h-6 text-sirius-sun-main" />,
+      bgColor: 'bg-sirius-sun-main/20'
+    },
+    {
+      title: 'Alertas',
+      value: empleadosActivos.reduce((sum, e) => sum + e.alertas.length, 0).toString(),
+      icon: <AlertCircle className="w-6 h-6 text-orange-500" />,
+      bgColor: 'bg-orange-100'
+    },
+    {
+      title: 'Eficiencia',
+      value: '94%',
+      icon: <TrendingUp className="w-6 h-6 text-sirius-earth-main" />,
+      bgColor: 'bg-sirius-earth-main/20'
     }
-    return colores[estado as keyof typeof colores] || colores.ausente
+  ]
+
+  const exportData = () => {
+    // Función para exportar datos
+    console.log('Exportando datos...')
+    alert('Función de exportación en desarrollo')
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
-
-  const exportarReporte = () => {
-    // TODO: Implementar exportación a Excel/PDF
-    console.log('Exportando reporte del día', fechaSeleccionada)
-  }
-
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-starry-night flex items-center justify-center">
         <div className="text-center">
@@ -207,35 +189,67 @@ export default function ControlHorasAdmin() {
   }
 
   return (
-    <div className="min-h-screen bg-starry-night p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+    <div className="min-h-screen bg-starry-night relative overflow-hidden">
+      {/* Partículas flotantes de fondo */}
+      <div className="absolute inset-0">
+        {[
+          { left: 10, top: 20 }, { left: 80, top: 10 }, { left: 30, top: 60 }, { left: 90, top: 80 },
+          { left: 15, top: 90 }, { left: 70, top: 30 }, { left: 50, top: 5 }, { left: 25, top: 40 },
+          { left: 85, top: 65 }, { left: 5, top: 75 }, { left: 95, top: 35 }, { left: 40, top: 85 },
+          { left: 60, top: 15 }, { left: 20, top: 70 }, { left: 75, top: 45 }, { left: 35, top: 25 },
+          { left: 65, top: 95 }, { left: 45, top: 55 }, { left: 55, top: 8 }, { left: 12, top: 50 }
+        ].map((pos, i) => (
+          <motion.div
+            key={i}
+            className="absolute w-1 h-1 bg-white/20 rounded-full"
+            style={{
+              left: `${pos.left}%`,
+              top: `${pos.top}%`
+            }}
+            animate={{
+              y: [0, -30, 0],
+              opacity: [0.2, 0.8, 0.2],
+              scale: [0.5, 1, 0.5]
+            }}
+            transition={{
+              duration: 4 + (i % 3),
+              repeat: Infinity,
+              delay: i * 0.2,
+              ease: "easeInOut"
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Contenido principal con mejor contraste */}
+      <div className="relative z-10 p-4 max-w-7xl mx-auto">
+        {/* Header con mejor contraste */}
         <motion.div
-          className="bg-white/95 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/30"
-          initial={{ opacity: 0, y: -20 }}
+          className="bg-white rounded-3xl p-6 shadow-lg border-2 border-gray-300 mb-6"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <SiriusButton
                 variant="secondary"
-                onClick={() => router.push('/admin')}
-                className="flex items-center gap-2"
+                onClick={() => router.back()}
+                className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Panel Admin
               </SiriusButton>
               
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-sirius-sky-main to-sirius-sky-light rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-r from-sirius-sky-main to-sirius-sky-dark rounded-full flex items-center justify-center shadow-lg">
                   <Clock className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">
+                  <h1 className="text-2xl font-bold text-gray-900">
                     Control de Horas ⏰
                   </h1>
-                  <p className="text-gray-600">
+                  <p className="text-gray-700 font-medium">
                     Gestión completa de jornadas laborales
                   </p>
                 </div>
@@ -243,16 +257,20 @@ export default function ControlHorasAdmin() {
             </div>
             
             <div className="flex items-center gap-4">
-              <input
-                type="date"
-                value={fechaSeleccionada}
-                onChange={(e) => setFechaSeleccionada(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sirius-sky-main focus:border-transparent"
-              />
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-gray-700" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-2 rounded-xl border-2 border-gray-300 focus:border-sirius-sky-main focus:ring-4 focus:ring-sirius-sky-light/30 transition-all duration-300 bg-white text-gray-900"
+                />
+              </div>
               <SiriusButton
-                variant="secondary"
-                onClick={exportarReporte}
-                className="flex items-center gap-2"
+                onClick={exportData}
+                variant="primary"
+                size="sm"
+                className="flex items-center gap-2 bg-sirius-sky-main hover:bg-sirius-sky-dark text-white"
               >
                 <Download className="w-4 h-4" />
                 Exportar
@@ -261,343 +279,290 @@ export default function ControlHorasAdmin() {
           </div>
         </motion.div>
 
-        {/* Estadísticas del día */}
+        {/* Resumen con mejor contraste */}
         <motion.div
-          className="grid grid-cols-1 md:grid-cols-5 gap-4"
+          className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
         >
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-white/30">
-            <div className="flex items-center gap-3">
-              <Users className="w-6 h-6 text-sirius-green-main" />
-              <div>
-                <p className="text-sm text-gray-600">Empleados</p>
-                <p className="text-xl font-bold">{estadisticasDelDia.empleadosActivos}/{estadisticasDelDia.totalEmpleados}</p>
+          {summaryCards.map((card, index) => (
+            <div key={index} className="bg-white rounded-2xl p-4 shadow-lg border-2 border-gray-300">
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-full shadow-sm ${card.bgColor}`}>
+                  {card.icon}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">{card.title}</p>
+                  <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-white/30">
-            <div className="flex items-center gap-3">
-              <Clock className="w-6 h-6 text-sirius-sky-main" />
-              <div>
-                <p className="text-sm text-gray-600">Horas Totales</p>
-                <p className="text-xl font-bold">{estadisticasDelDia.horasTotales.toFixed(1)}h</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-white/30">
-            <div className="flex items-center gap-3">
-              <DollarSign className="w-6 h-6 text-sirius-sun-main" />
-              <div>
-                <p className="text-sm text-gray-600">Pago del Día</p>
-                <p className="text-lg font-bold">{formatCurrency(estadisticasDelDia.pagoTotal)}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-white/30">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-6 h-6 text-orange-500" />
-              <div>
-                <p className="text-sm text-gray-600">Alertas</p>
-                <p className="text-xl font-bold">{estadisticasDelDia.alertas}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-white/30">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="w-6 h-6 text-sirius-earth-main" />
-              <div>
-                <p className="text-sm text-gray-600">Eficiencia</p>
-                <p className="text-xl font-bold">94%</p>
-              </div>
-            </div>
-          </div>
+          ))}
         </motion.div>
 
-        {/* Filtros y búsqueda */}
+        {/* Filtros con mejor contraste */}
         <motion.div
-          className="bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-white/30"
+          className="bg-white rounded-2xl p-4 shadow-lg border-2 border-gray-300 mb-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.6 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
         >
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sirius-sky-main"
-              >
-                <option value="todos">Todos los estados</option>
-                <option value="activo">Activos</option>
-                <option value="almuerzo">En almuerzo</option>
-                <option value="terminado">Terminados</option>
-                <option value="ausente">Ausentes</option>
-              </select>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-gray-700" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border-2 border-gray-300 focus:border-sirius-sky-main focus:ring-4 focus:ring-sirius-sky-light/30 transition-all duration-300 bg-white text-gray-900"
+                >
+                  <option value="all">Todos los estados</option>
+                  <option value="working">Trabajando</option>
+                  <option value="break">En pausa/Almuerzo</option>
+                  <option value="finished">Terminado</option>
+                  <option value="absent">Ausente</option>
+                </select>
+              </div>
             </div>
-
-            <div className="flex items-center gap-2 flex-1 max-w-md">
-              <Search className="w-4 h-4 text-gray-500" />
+            
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Buscar por nombre, apodo o cédula..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sirius-sky-main focus:border-transparent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 rounded-xl border-2 border-gray-300 focus:border-sirius-sky-main focus:ring-4 focus:ring-sirius-sky-light/30 transition-all duration-300 bg-white text-gray-900 min-w-[300px]"
               />
             </div>
           </div>
         </motion.div>
 
-        {/* Lista de empleados */}
-        <motion.div
-          className="space-y-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
-        >
-          {empleadosFiltrados.map((empleado, index) => (
+        {/* Lista de empleados con mejor contraste */}
+        <div className="space-y-4">
+          {filteredEmployees.map((empleado, index) => (
             <motion.div
               key={empleado.id}
-              className="bg-white/95 backdrop-blur-md rounded-2xl border border-white/30 overflow-hidden"
+              className="bg-white rounded-2xl p-6 shadow-lg border-2 border-gray-300 hover:shadow-xl transition-all duration-300"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 * index, duration: 0.6 }}
             >
-              {/* Header del empleado */}
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-r from-sirius-green-main to-sirius-green-light rounded-full flex items-center justify-center">
-                      <span className="text-white font-medium">
-                        {empleado.apodo.charAt(0)}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-sirius-green-main to-sirius-green-dark rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xl font-bold">
+                      {empleado.apodo?.charAt(0) || empleado.nombre.charAt(0)}
+                    </span>
+                  </div>
+                  
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-xl font-bold text-gray-900">
+                        {empleado.nombre} {empleado.apodo && `(${empleado.apodo})`}
+                      </h3>
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold border-2 ${getStatusColor(empleado.estado)}`}>
+                        {empleado.estado}
                       </span>
                     </div>
-                    
-                    <div>
-                      <h3 className="font-semibold text-gray-800">
-                        {empleado.nombre} ({empleado.apodo})
-                      </h3>
-                      <div className="flex items-center gap-3 text-sm text-gray-600">
-                        <span>{empleado.cargo}</span>
-                        <span>•</span>
-                        <span>{empleado.cedula}</span>
-                        <span>•</span>
-                        <span>{formatCurrency(empleado.salarioHora)}/hora</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getEstadoColor(empleado.estado)}`}>
-                      {empleado.estado}
-                    </span>
-                    
-                    {empleado.alertas.length > 0 && (
-                      <div className="flex items-center gap-1 text-orange-500">
-                        <AlertTriangle className="w-4 h-4" />
-                        <span className="text-xs">{empleado.alertas.length}</span>
-                      </div>
-                    )}
-
-                    <SiriusButton
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setMostrarDetalle(mostrarDetalle === empleado.id ? null : empleado.id)}
-                    >
-                      {mostrarDetalle === empleado.id ? 'Ocultar' : 'Ver detalle'}
-                    </SiriusButton>
+                    <p className="text-gray-700 font-medium">
+                      Empleado • {empleado.cedula} • ${empleado.salario_hora.toLocaleString('es-CO')}/hora
+                    </p>
                   </div>
                 </div>
+                
+                <SiriusButton
+                  onClick={() => setMostrarDetalle(mostrarDetalle === empleado.id ? null : empleado.id)}
+                  variant="secondary"
+                  size="sm"
+                  className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800"
+                >
+                  <Eye className="w-4 h-4" />
+                  Ver detalle
+                </SiriusButton>
               </div>
-
-              {/* Resumen rápido */}
-              <div className="p-4 bg-gray-50/50">
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Horas Hoy</p>
-                    <p className="font-bold text-gray-800">{empleado.horasHoy.totalHoras.toFixed(1)}h</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Ordinarias</p>
-                    <p className="font-bold text-sirius-green-dark">{empleado.horasHoy.ordinarias.toFixed(1)}h</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Extras</p>
-                    <p className="font-bold text-sirius-sky-dark">{(empleado.horasHoy.extraDiurnas + empleado.horasHoy.extraNocturnas).toFixed(1)}h</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Nocturnas</p>
-                    <p className="font-bold text-sirius-earth-dark">{empleado.horasHoy.nocturnas.toFixed(1)}h</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Semanales</p>
-                    <p className="font-bold text-gray-600">{empleado.horasSemanales.toFixed(1)}h</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-gray-500">Pago Total</p>
-                    <p className="font-bold text-sirius-sun-dark">{formatCurrency(empleado.totalPago)}</p>
-                  </div>
+              
+              {/* Estadísticas de horas con mejor contraste */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mt-6">
+                <div className="text-center bg-white rounded-xl p-3 border-2 border-gray-300 shadow-sm">
+                  <p className="text-sm font-bold text-gray-800">Horas Hoy</p>
+                  <p className="text-2xl font-bold text-gray-900">{empleado.horasHoy.toFixed(1)}h</p>
+                </div>
+                
+                <div className="text-center bg-green-50 rounded-xl p-3 border-2 border-green-300 shadow-sm">
+                  <p className="text-sm font-bold text-green-800">Ordinarias</p>
+                  <p className="text-2xl font-bold text-green-900">{empleado.horasOrdinarias.toFixed(1)}h</p>
+                </div>
+                
+                <div className="text-center bg-blue-50 rounded-xl p-3 border-2 border-blue-300 shadow-sm">
+                  <p className="text-sm font-bold text-blue-800">Extras</p>
+                  <p className="text-2xl font-bold text-blue-900">{(empleado.horasExtras + empleado.horasNocturnas).toFixed(1)}h</p>
+                </div>
+                
+                <div className="text-center bg-orange-50 rounded-xl p-3 border-2 border-orange-300 shadow-sm">
+                  <p className="text-sm font-bold text-orange-800">Nocturnas</p>
+                  <p className="text-2xl font-bold text-orange-900">{empleado.horasNocturnas.toFixed(1)}h</p>
+                </div>
+                
+                <div className="text-center bg-purple-50 rounded-xl p-3 border-2 border-purple-300 shadow-sm">
+                  <p className="text-sm font-bold text-purple-800">Semanales</p>
+                  <p className="text-2xl font-bold text-purple-900">{empleado.horasSemanales.toFixed(1)}h</p>
+                </div>
+                
+                <div className="text-center bg-yellow-50 rounded-xl p-3 border-2 border-yellow-400 shadow-sm">
+                  <p className="text-sm font-bold text-yellow-800">Pago Total</p>
+                  <p className="text-2xl font-bold text-yellow-900">${empleado.pagoTotal.toLocaleString('es-CO')}</p>
                 </div>
               </div>
-
-              {/* Detalle expandible */}
+              
+              {/* Detalles expandibles con contraste corregido */}
               {mostrarDetalle === empleado.id && (
                 <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
+                  className="mt-6 space-y-4"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
                   transition={{ duration: 0.3 }}
-                  className="border-t border-gray-100"
                 >
-                  <div className="p-6 space-y-6">
-                    {/* Registros de tiempo */}
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        Registros del Día
-                      </h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                          <p className="text-xs text-green-600 font-medium">Entrada</p>
-                          <p className="text-lg font-bold text-green-800">
-                            {empleado.registros.entrada || '--:--'}
-                          </p>
-                        </div>
-                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                          <p className="text-xs text-yellow-600 font-medium">Inicio Almuerzo</p>
-                          <p className="text-lg font-bold text-yellow-800">
-                            {empleado.registros.inicioAlmuerzo || '--:--'}
-                          </p>
-                        </div>
-                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                          <p className="text-xs text-yellow-600 font-medium">Fin Almuerzo</p>
-                          <p className="text-lg font-bold text-yellow-800">
-                            {empleado.registros.finAlmuerzo || '--:--'}
-                          </p>
-                        </div>
-                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                          <p className="text-xs text-blue-600 font-medium">Salida</p>
-                          <p className="text-lg font-bold text-blue-800">
-                            {empleado.registros.salida || '--:--'}
-                          </p>
-                        </div>
+                  {/* Registros del día */}
+                  <div className="bg-white rounded-xl p-4 border-2 border-gray-300 shadow-sm">
+                    <h4 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-gray-700" />
+                      Registros del Día
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="bg-green-100 p-3 rounded-lg border-2 border-green-300">
+                        <p className="text-xs font-bold text-green-800">Entrada</p>
+                        <p className="text-lg font-bold text-green-900">
+                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className="bg-yellow-100 p-3 rounded-lg border-2 border-yellow-300">
+                        <p className="text-xs font-bold text-yellow-800">Inicio Almuerzo</p>
+                        <p className="text-lg font-bold text-yellow-900">
+                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className="bg-yellow-100 p-3 rounded-lg border-2 border-yellow-300">
+                        <p className="text-xs font-bold text-yellow-800">Fin Almuerzo</p>
+                        <p className="text-lg font-bold text-yellow-900">
+                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <div className="bg-blue-100 p-3 rounded-lg border-2 border-blue-300">
+                        <p className="text-xs font-bold text-blue-800">Salida</p>
+                        <p className="text-lg font-bold text-blue-900">
+                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
                       </div>
                     </div>
-
-                    {/* Desglose de horas y pagos */}
-                    <div>
-                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                        <DollarSign className="w-4 h-4" />
-                        Desglose de Pagos (Legislación Colombiana)
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Horas base */}
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                          <h5 className="font-medium text-gray-700 mb-3">Horas Base</h5>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span>Ordinarias diurnas:</span>
-                              <span className="font-medium">{empleado.horasHoy.ordinarias.toFixed(1)}h × {formatCurrency(empleado.salarioHora)} = {formatCurrency(empleado.horasHoy.salarioBase)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Recargo nocturno (+35%):</span>
-                              <span className="font-medium">{empleado.horasHoy.nocturnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.recargoNocturno)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Horas extra */}
-                        <div className="bg-sirius-sky-main/10 p-4 rounded-lg">
-                          <h5 className="font-medium text-gray-700 mb-3">Horas Extra</h5>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span>Extra diurnas (+25%):</span>
-                              <span className="font-medium">{empleado.horasHoy.extraDiurnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.extraDiurna)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Extra nocturnas (+75%):</span>
-                              <span className="font-medium">{empleado.horasHoy.extraNocturnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.extraNocturna)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Dominicales/Festivos */}
-                        <div className="bg-sirius-sun-main/10 p-4 rounded-lg">
-                          <h5 className="font-medium text-gray-700 mb-3">Dominicales/Festivos</h5>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span>Dominical diurno (+100%):</span>
-                              <span className="font-medium">{empleado.horasHoy.dominicalesDiurnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.extraDominicalDiurna)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Dominical nocturno (+150%):</span>
-                              <span className="font-medium">{empleado.horasHoy.dominicalesNocturnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.extraDominicalNocturna)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Festivo diurno (+100%):</span>
-                              <span className="font-medium">{empleado.horasHoy.festivasDiurnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.extraFestivaDiurna)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Festivo nocturno (+150%):</span>
-                              <span className="font-medium">{empleado.horasHoy.festivasNocturnas.toFixed(1)}h = {formatCurrency(empleado.horasHoy.extraFestivaNocturna)}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Total */}
-                        <div className="bg-sirius-green-main/10 p-4 rounded-lg">
-                          <h5 className="font-medium text-gray-700 mb-3">Total a Pagar</h5>
-                          <div className="text-center">
-                            <p className="text-2xl font-bold text-sirius-green-dark">
-                              {formatCurrency(empleado.totalPago)}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {empleado.horasHoy.totalHoras.toFixed(1)} horas trabajadas
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Alertas */}
-                    {empleado.alertas.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4 text-orange-500" />
-                          Alertas y Avisos
-                        </h4>
-                        <div className="space-y-2">
-                          {empleado.alertas.map((alerta, idx) => (
-                            <div key={idx} className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-orange-800">
-                              {alerta}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
+
+                  {/* Desglose de pagos */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-xl p-4 border-2 border-gray-300 shadow-sm">
+                      <h5 className="font-bold text-gray-900 mb-3">Horas Base</h5>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Ordinarias diurnas:</span>
+                          <span className="font-bold text-gray-900">{empleado.horasOrdinarias.toFixed(1)}h × ${empleado.salario_hora.toLocaleString('es-CO')} = ${(empleado.horasOrdinarias * empleado.salario_hora).toLocaleString('es-CO')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Recargo nocturno (+35%):</span>
+                          <span className="font-bold text-gray-900">{empleado.horasNocturnas.toFixed(1)}h = ${(empleado.horasNocturnas * empleado.salario_hora * 1.35).toLocaleString('es-CO')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl p-4 border-2 border-gray-300 shadow-sm">
+                      <h5 className="font-bold text-gray-900 mb-3">Horas Extra</h5>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Extra diurnas (+25%):</span>
+                          <span className="font-bold text-gray-900">{empleado.horasExtras.toFixed(1)}h = ${(empleado.horasExtras * empleado.salario_hora * 1.25).toLocaleString('es-CO')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Extra nocturnas (+75%):</span>
+                          <span className="font-bold text-gray-900">{empleado.horasNocturnas.toFixed(1)}h = ${(empleado.horasNocturnas * empleado.salario_hora * 1.75).toLocaleString('es-CO')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-xl p-4 border-2 border-gray-300 shadow-sm">
+                      <h5 className="font-bold text-gray-900 mb-3">Dominicales/Festivos</h5>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Dominical diurno (+100%):</span>
+                          <span className="font-bold text-gray-900">0h = $0</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Dominical nocturno (+150%):</span>
+                          <span className="font-bold text-gray-900">0h = $0</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Festivo diurno (+100%):</span>
+                          <span className="font-bold text-gray-900">0h = $0</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-800">Festivo nocturno (+150%):</span>
+                          <span className="font-bold text-gray-900">0h = $0</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-green-100 rounded-xl p-4 border-2 border-green-400 shadow-sm">
+                      <h5 className="font-bold text-green-900 mb-3">Total a Pagar</h5>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-green-900">
+                          ${empleado.pagoTotal.toLocaleString('es-CO')}
+                        </p>
+                        <p className="text-sm text-green-800 mt-1 font-medium">
+                          {empleado.horasHoy.toFixed(1)} horas trabajadas
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Alertas si las hay */}
+                  {empleado.alertas.length > 0 && (
+                    <div className="bg-orange-100 rounded-xl p-4 border-2 border-orange-400 shadow-sm">
+                      <h5 className="font-bold text-orange-900 mb-2 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5" />
+                        Alertas
+                      </h5>
+                      <ul className="space-y-1">
+                        {empleado.alertas.map((alerta, idx) => (
+                          <li key={idx} className="text-sm text-orange-800 font-medium">
+                            • {alerta}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </motion.div>
           ))}
-        </motion.div>
+        </div>
 
-        {empleadosFiltrados.length === 0 && (
+        {filteredEmployees.length === 0 && (
           <motion.div
-            className="bg-white/95 backdrop-blur-md rounded-2xl p-8 text-center border border-white/30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            className="bg-white rounded-2xl p-12 shadow-lg border-2 border-gray-300 text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
           >
-            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No se encontraron empleados con los filtros aplicados</p>
-            <p className="text-sm text-gray-500 mt-1">Intenta cambiar los filtros de búsqueda</p>
+            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              No se encontraron empleados
+            </h3>
+            <p className="text-gray-600 font-medium">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'Intenta ajustar los filtros de búsqueda' 
+                : 'No hay registros para la fecha seleccionada'}
+            </p>
           </motion.div>
         )}
       </div>

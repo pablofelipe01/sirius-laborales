@@ -25,7 +25,9 @@ export interface Employee {
   cedula: string
   nombre: string
   apodo?: string
-  salario: number
+  salario: number // Salario por hora
+  cargo: string // Campo agregado para empleados reales
+  departamento: string // Campo agregado para empleados reales
   pausas_activas_enabled: boolean
   racha_pausas: number
   emoji_favorito: string

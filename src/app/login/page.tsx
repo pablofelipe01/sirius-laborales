@@ -38,7 +38,9 @@ export default function LoginPage() {
   // Redirigir si ya está autenticado
   useEffect(() => {
     if (employee) {
-      router.replace('/dashboard')
+      // Verificar si es admin para redirigir correctamente
+      const isAdmin = employee.cedula === '1019090206'
+      router.replace(isAdmin ? '/admin' : '/dashboard')
     }
   }, [employee, router])
 
@@ -66,7 +68,9 @@ export default function LoginPage() {
         setMessage({ text: result.message, type: 'success' })
         // Pequeña pausa para mostrar el mensaje de éxito antes de redirigir
         setTimeout(() => {
-          router.replace('/dashboard')
+          // Verificar si es admin para redirigir correctamente
+          const isAdmin = cedula.trim() === '1019090206'
+          router.replace(isAdmin ? '/admin' : '/dashboard')
         }, 1500)
       } else {
         setMessage({ text: result.message, type: 'error' })

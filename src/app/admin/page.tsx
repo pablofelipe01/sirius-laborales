@@ -5,20 +5,17 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { SiriusButton } from '@/components/ui/SiriusButton'
-import { PlantaCrecimiento } from '@/components/ui/PlantaCrecimiento'
 import { SiriusDB } from '@/lib/supabase'
 import { 
-  Users, 
+  Calendar, 
   Clock, 
-  DollarSign, 
-  Calendar,
+  Users, 
+  TrendingUp, 
+  Star, 
+  UserCheck,
   BarChart3,
+  DollarSign,
   Settings,
-  Shield,
-  ArrowLeft,
-  Leaf,
-  Sun,
-  TrendingUp,
   AlertCircle
 } from 'lucide-react'
 
@@ -63,8 +60,9 @@ export default function AdminDashboard() {
       return
     }
     
-    // Solo Luisa tiene acceso administrativo (cédula específica)
-    if (employee.cedula !== '123456789') {
+    // Verificar si es admin
+    const isAdmin = employee.cedula === '1019090206'
+    if (!isAdmin) {
       router.replace('/dashboard')
       return
     }
@@ -173,83 +171,127 @@ export default function AdminDashboard() {
     )
   }
 
+  if (!employee) {
+    return <div>Cargando...</div>
+  }
+
+  const handleSwitchToEmployee = () => {
+    router.push('/dashboard')
+  }
+
+  const handleLogout = () => {
+    logout()
+    router.replace('/login')
+  }
+
   return (
-    <div className="min-h-screen bg-starry-night">
-      {/* Elementos decorativos de jardín */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {Array.from({ length: 8 }, (_, i) => (
+    <div className="min-h-screen bg-starry-night relative overflow-hidden">
+      {/* Partículas flotantes de fondo - igual que en otras páginas */}
+      <div className="absolute inset-0">
+        {[
+          { left: 10, top: 20 }, { left: 80, top: 10 }, { left: 30, top: 60 }, { left: 90, top: 80 },
+          { left: 15, top: 90 }, { left: 70, top: 30 }, { left: 50, top: 5 }, { left: 25, top: 40 },
+          { left: 85, top: 65 }, { left: 5, top: 75 }, { left: 95, top: 35 }, { left: 40, top: 85 },
+          { left: 60, top: 15 }, { left: 20, top: 70 }, { left: 75, top: 45 }, { left: 35, top: 25 },
+          { left: 65, top: 95 }, { left: 45, top: 55 }, { left: 55, top: 8 }, { left: 12, top: 50 }
+        ].map((pos, i) => (
           <motion.div
             key={i}
-            className="absolute opacity-20"
+            className="absolute w-1 h-1 bg-white/20 rounded-full"
             style={{
-              left: `${10 + (i * 12) % 80}%`,
-              top: `${20 + (i * 8) % 60}%`
+              left: `${pos.left}%`,
+              top: `${pos.top}%`
             }}
             animate={{
-              y: [0, -10, 0],
-              rotate: [0, 5, 0, -5, 0]
+              y: [0, -30, 0],
+              opacity: [0.2, 0.8, 0.2],
+              scale: [0.5, 1, 0.5]
             }}
             transition={{
-              duration: 6 + (i % 3),
+              duration: 4 + (i % 3),
               repeat: Infinity,
-              delay: i * 0.5,
+              delay: i * 0.2,
+              ease: "easeInOut"
             }}
-          >
-            <Leaf className="w-6 h-6 text-sirius-green-main" />
-          </motion.div>
+          />
         ))}
       </div>
 
-      <div className="relative z-10 p-4 max-w-7xl mx-auto">
-        {/* Header Administrativo */}
+      {/* Contenido principal con z-index mayor */}
+      <div className="relative z-10 p-4 space-y-6">
+        
+        {/* Header con saludo personalizado y botón de cambio de rol */}
         <motion.div
-          className="bg-white/95 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/30 mb-6"
-          initial={{ opacity: 0, y: -20 }}
+          className="bg-white/95 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <SiriusButton
-                variant="secondary"
-                onClick={() => router.push('/dashboard')}
-                className="flex items-center gap-2"
+              <motion.div
+                className="w-16 h-16 bg-gradient-to-br from-sirius-green-main to-sirius-green-dark rounded-full flex items-center justify-center"
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
               >
-                <ArrowLeft className="w-4 h-4" />
-                Dashboard
-              </SiriusButton>
-              
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-sirius-sun-main to-sirius-sun-light rounded-full flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-800">
-                    Panel Administrativo 🌺
-                  </h1>
-                  <p className="text-gray-600">
-                    Bienvenida {employee?.apodo || employee?.nombre} - Gestiona tu jardín laboral
-                  </p>
-                </div>
+                <UserCheck className="w-8 h-8 text-white" />
+              </motion.div>
+              <div>
+                <motion.h1 
+                  className="text-2xl font-bold text-gray-900"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                >
+                  ¡Bienvenida al Jardín Administrativo, {employee.apodo || employee.nombre}! 🌺
+                </motion.h1>
+                <motion.p 
+                  className="text-gray-600 mt-1"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4, duration: 0.5 }}
+                >
+                  Como el sol nutre las plantas, tu gestión nutre los proyectos
+                </motion.p>
               </div>
             </div>
             
-            <div className="flex items-center gap-4">
-              <PlantaCrecimiento
-                nivel={8}
-                tipo="arbol"
-                size="sm"
-                animation={true}
-              />
+            {/* Botón para cambiar entre roles */}
+            <div className="flex items-center gap-2">
               <SiriusButton
+                onClick={handleSwitchToEmployee}
                 variant="secondary"
-                onClick={logout}
-                className="text-gray-600"
+                size="sm"
+                className="flex items-center gap-2"
               >
-                Salir
+                <Users className="w-4 h-4" />
+                Mi Vista de Empleada
+              </SiriusButton>
+              <SiriusButton
+                onClick={handleLogout}
+                variant="secondary"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                Cerrar Sesión
               </SiriusButton>
             </div>
           </div>
+
+          {/* Indicador de rol actual */}
+          <motion.div
+            className="mt-4 p-3 bg-gradient-to-r from-sirius-green-light/20 to-sirius-sky-light/20 rounded-xl border border-sirius-green-light/30"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+          >
+            <div className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-sirius-green-main" />
+              <span className="text-sm font-medium text-gray-700">
+                Modo Administradora Activo - Gestionando el ecosistema SIRIUS
+              </span>
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* Estadísticas rápidas */}
@@ -418,7 +460,8 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <Sun className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              {/* Sun icon was removed from imports, so it's commented out */}
+              {/* <Sun className="w-12 h-12 text-gray-400 mx-auto mb-3" /> */}
               <p className="text-gray-600">No hay empleados activos en este momento</p>
               <p className="text-sm text-gray-500 mt-1">Los registros aparecerán cuando inicien su jornada</p>
             </div>

@@ -30,8 +30,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Verificar si es administrador (Luisa en este caso)
-  const isAdmin = employee?.cedula === process.env.ADMIN_CEDULA || employee?.cedula === '12345678'
+  // Verificar si es administrador (Luisa Ramírez - Coordinadora líder en gestión del ser)
+  const isAdmin = employee?.cedula === process.env.ADMIN_CEDULA || employee?.cedula === '1019090206'
 
   useEffect(() => {
     // Verificar si hay una sesión guardada al cargar la app

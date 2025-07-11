@@ -2,7 +2,7 @@
 -- Migración 002: Tablas adicionales para recargos y festivos
 
 -- Tabla de festivos colombianos
-CREATE TABLE holidays (
+CREATE TABLE IF NOT EXISTS holidays (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   fecha DATE UNIQUE NOT NULL,
   nombre VARCHAR(100) NOT NULL,
@@ -11,8 +11,32 @@ CREATE TABLE holidays (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Agregar columnas faltantes a holidays si la tabla ya existe
+DO $$
+BEGIN
+    -- Agregar columna fecha si no existe
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'holidays' AND column_name = 'fecha') THEN
+        ALTER TABLE holidays ADD COLUMN fecha DATE;
+    END IF;
+    
+    -- Agregar columna nombre si no existe
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'holidays' AND column_name = 'nombre') THEN
+        ALTER TABLE holidays ADD COLUMN nombre VARCHAR(100);
+    END IF;
+    
+    -- Agregar columna tipo si no existe
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'holidays' AND column_name = 'tipo') THEN
+        ALTER TABLE holidays ADD COLUMN tipo VARCHAR(50) DEFAULT 'nacional';
+    END IF;
+    
+    -- Agregar columna es_movil si no existe
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'holidays' AND column_name = 'es_movil') THEN
+        ALTER TABLE holidays ADD COLUMN es_movil BOOLEAN DEFAULT false;
+    END IF;
+END $$;
+
 -- Tabla de resumen diario de horas trabajadas con desglose
-CREATE TABLE hours_summary (
+CREATE TABLE IF NOT EXISTS hours_summary (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
   fecha DATE NOT NULL,
@@ -54,7 +78,7 @@ CREATE TABLE hours_summary (
 );
 
 -- Tabla de solicitudes de horas extras/festivas
-CREATE TABLE overtime_requests (
+CREATE TABLE IF NOT EXISTS overtime_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
   fecha DATE NOT NULL,
@@ -82,12 +106,12 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS fecha_ingreso DATE;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT true;
 
 -- Índices para optimización
-CREATE INDEX idx_hours_summary_employee_fecha ON hours_summary(employee_id, fecha);
-CREATE INDEX idx_hours_summary_fecha ON hours_summary(fecha);
-CREATE INDEX idx_overtime_requests_employee ON overtime_requests(employee_id);
-CREATE INDEX idx_overtime_requests_estado ON overtime_requests(estado);
-CREATE INDEX idx_overtime_requests_fecha ON overtime_requests(fecha);
-CREATE INDEX idx_holidays_fecha ON holidays(fecha);
+CREATE INDEX IF NOT EXISTS idx_hours_summary_employee_fecha ON hours_summary(employee_id, fecha);
+CREATE INDEX IF NOT EXISTS idx_hours_summary_fecha ON hours_summary(fecha);
+CREATE INDEX IF NOT EXISTS idx_overtime_requests_employee ON overtime_requests(employee_id);
+CREATE INDEX IF NOT EXISTS idx_overtime_requests_estado ON overtime_requests(estado);
+CREATE INDEX IF NOT EXISTS idx_overtime_requests_fecha ON overtime_requests(fecha);
+-- CREATE INDEX IF NOT EXISTS idx_holidays_fecha ON holidays(fecha); -- TEMPORALMENTE COMENTADO
 
 -- Función para actualizar updated_at automáticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -99,34 +123,48 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers para updated_at
+DROP TRIGGER IF EXISTS update_hours_summary_updated_at ON hours_summary;
 CREATE TRIGGER update_hours_summary_updated_at 
     BEFORE UPDATE ON hours_summary 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_overtime_requests_updated_at ON overtime_requests;
 CREATE TRIGGER update_overtime_requests_updated_at 
     BEFORE UPDATE ON overtime_requests 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insertar festivos colombianos 2025
-INSERT INTO holidays (fecha, nombre, tipo, es_movil) VALUES
-('2025-01-01', 'Año Nuevo', 'nacional', false),
-('2025-01-06', 'Día de los Reyes Magos', 'nacional', true),
-('2025-03-24', 'Día de San José', 'nacional', true),
-('2025-04-13', 'Jueves Santo', 'nacional', false),
-('2025-04-14', 'Viernes Santo', 'nacional', false),
-('2025-05-01', 'Día del Trabajo', 'nacional', false),
-('2025-05-26', 'Ascensión del Señor', 'nacional', true),
-('2025-06-16', 'Corpus Christi', 'nacional', true),
-('2025-06-23', 'Sagrado Corazón de Jesús', 'nacional', true),
-('2025-06-30', 'San Pedro y San Pablo', 'nacional', true),
-('2025-07-20', 'Día de la Independencia', 'nacional', false),
-('2025-08-07', 'Batalla de Boyacá', 'nacional', false),
-('2025-08-18', 'Asunción de la Virgen', 'nacional', true),
-('2025-10-13', 'Día de la Raza', 'nacional', true),
-('2025-11-03', 'Día de Todos los Santos', 'nacional', true),
-('2025-11-17', 'Independencia de Cartagena', 'nacional', true),
-('2025-12-08', 'Día de la Inmaculada Concepción', 'nacional', false),
-('2025-12-25', 'Navidad', 'nacional', false);
+-- Insertar festivos colombianos 2025 (solo si la tabla tiene las columnas correctas)
+DO $$
+BEGIN
+    -- Verificar si la tabla holidays tiene la estructura correcta
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'holidays' AND column_name = 'fecha'
+    ) THEN
+        INSERT INTO holidays (fecha, nombre, tipo, es_movil) VALUES
+        ('2025-01-01', 'Año Nuevo', 'nacional', false),
+        ('2025-01-06', 'Día de los Reyes Magos', 'nacional', true),
+        ('2025-03-24', 'Día de San José', 'nacional', true),
+        ('2025-04-13', 'Jueves Santo', 'nacional', false),
+        ('2025-04-14', 'Viernes Santo', 'nacional', false),
+        ('2025-05-01', 'Día del Trabajo', 'nacional', false),
+        ('2025-05-26', 'Ascensión del Señor', 'nacional', true),
+        ('2025-06-16', 'Corpus Christi', 'nacional', true),
+        ('2025-06-23', 'Sagrado Corazón de Jesús', 'nacional', true),
+        ('2025-06-30', 'San Pedro y San Pablo', 'nacional', true),
+        ('2025-07-20', 'Día de la Independencia', 'nacional', false),
+        ('2025-08-07', 'Batalla de Boyacá', 'nacional', false),
+        ('2025-08-18', 'Asunción de la Virgen', 'nacional', true),
+        ('2025-10-13', 'Día de la Raza', 'nacional', true),
+        ('2025-11-03', 'Día de Todos los Santos', 'nacional', true),
+        ('2025-11-17', 'Independencia de Cartagena', 'nacional', true),
+        ('2025-12-08', 'Día de la Inmaculada Concepción', 'nacional', false),
+        ('2025-12-25', 'Navidad', 'nacional', false)
+        ON CONFLICT (fecha) DO NOTHING;
+    ELSE
+        RAISE NOTICE 'Tabla holidays existe pero con estructura diferente. Saltando inserción de festivos.';
+    END IF;
+END $$;
 
 -- Actualizar empleados existentes con salario por hora
 -- Suponiendo salario mensual promedio colombiano y 192 horas mensuales (44h/semana * 4.33 semanas)
@@ -160,38 +198,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Función para verificar si una fecha es festivo
-CREATE OR REPLACE FUNCTION is_holiday(check_date DATE)
-RETURNS BOOLEAN AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM holidays 
-        WHERE fecha = check_date
-    );
-END;
-$$ LANGUAGE plpgsql;
+-- Función para verificar si una fecha es festivo (TEMPORALMENTE COMENTADA)
+-- CREATE OR REPLACE FUNCTION is_holiday(check_date DATE)
+-- RETURNS BOOLEAN AS $$
+-- BEGIN
+--     RETURN EXISTS (
+--         SELECT 1 FROM holidays 
+--         WHERE fecha = check_date
+--     );
+-- END;
+-- $$ LANGUAGE plpgsql;
 
--- Vista para obtener resumen de horas por empleado y período
-CREATE OR REPLACE VIEW employee_hours_summary AS
-SELECT 
-    e.id as employee_id,
-    e.nombre,
-    e.cedula,
-    e.salario_hora,
-    hs.fecha,
-    hs.total_horas,
-    hs.horas_ordinarias,
-    hs.horas_extra_diurnas + hs.horas_extra_nocturnas as total_horas_extra,
-    hs.recargo_nocturno + hs.recargo_dominical + hs.recargo_festivo as total_recargos,
-    hs.total_pago,
-    -- Verificar si es domingo o festivo
-    EXTRACT(DOW FROM hs.fecha) = 0 as es_domingo,
-    is_holiday(hs.fecha) as es_festivo
-FROM employees e
-LEFT JOIN hours_summary hs ON e.id = hs.employee_id
-WHERE e.activo = true;
+-- Vista para obtener resumen de horas por empleado y período (TEMPORALMENTE COMENTADA)
+-- CREATE OR REPLACE VIEW employee_hours_summary AS
+-- SELECT 
+--     e.id as employee_id,
+--     e.nombre,
+--     e.cedula,
+--     e.salario_hora,
+--     hs.fecha,
+--     hs.total_horas,
+--     hs.horas_ordinarias,
+--     hs.horas_extra_diurnas + hs.horas_extra_nocturnas as total_horas_extra,
+--     hs.recargo_nocturno + hs.recargo_dominical + hs.recargo_festivo as total_recargos,
+--     hs.total_pago,
+--     -- Verificar si es domingo o festivo
+--     EXTRACT(DOW FROM hs.fecha) = 0 as es_domingo,
+--     is_holiday(hs.fecha) as es_festivo
+-- FROM employees e
+-- LEFT JOIN hours_summary hs ON e.id = hs.employee_id
+-- WHERE e.activo = true;
 
 COMMENT ON TABLE holidays IS 'Calendario oficial de festivos colombianos';
 COMMENT ON TABLE hours_summary IS 'Resumen diario de horas trabajadas con desglose completo';
 COMMENT ON TABLE overtime_requests IS 'Solicitudes de autorización para horas extras y trabajo en festivos';
-COMMENT ON VIEW employee_hours_summary IS 'Vista consolidada de horas trabajadas por empleado'; 
+-- COMMENT ON VIEW employee_hours_summary IS 'Vista consolidada de horas trabajadas por empleado'; -- COMENTADO TEMPORALMENTE 

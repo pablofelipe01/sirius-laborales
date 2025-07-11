@@ -13,8 +13,8 @@ VAPID_PRIVATE_KEY=your_vapid_private_key
 # Configuración de desarrollo
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Configuración de administración
-ADMIN_CEDULA=12345678
+# Configuración de administración - ACTUALIZADO CON DATOS REALES
+ADMIN_CEDULA=1019090206
 
 # Variables de configuración SIRIUS
 NEXT_PUBLIC_COMPANY_NAME="SIRIUS Regenerative"
