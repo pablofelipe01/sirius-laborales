@@ -86,10 +86,10 @@ async function testEmployeesData() {
     
     log.info(`Total empleados encontrados: ${employees.length}`)
     
-    if (employees.length === 13) {
-      log.success('✅ Cantidad correcta de empleados (13)')
+    if (employees.length === 14) {
+      log.success('✅ Cantidad correcta de empleados (14)')
     } else {
-      log.warning(`⚠️ Se esperaban 13 empleados, encontrados: ${employees.length}`)
+      log.warning(`⚠️ Se esperaban 14 empleados, encontrados: ${employees.length}`)
     }
     
     // Verificar admin
@@ -104,10 +104,10 @@ async function testEmployeesData() {
     const departamentos = [...new Set(employees.map(emp => emp.departamento))]
     log.info(`Departamentos activos: ${departamentos.join(', ')}`)
     
-    if (departamentos.length === 4) {
-      log.success('✅ Cantidad correcta de departamentos (4)')
+    if (departamentos.length === 5) {
+      log.success('✅ Cantidad correcta de departamentos (5)')
     } else {
-      log.warning(`⚠️ Se esperaban 4 departamentos, encontrados: ${departamentos.length}`)
+      log.warning(`⚠️ Se esperaban 5 departamentos, encontrados: ${departamentos.length}`)
     }
     
     return true
@@ -123,6 +123,7 @@ async function testAuthentication() {
   
   const testCedulas = [
     { cedula: '1019090206', name: 'Luisa Ramírez (Admin)' },
+    { cedula: 'PABLOCTO2024', name: 'Pablo Acebedo (CTO)' },
     { cedula: '1006534877', name: 'Santiago Amaya (Jefe Pirólisis)' },
     { cedula: '1122626299', name: 'Mario Barrera (Auxiliar)' },
     { cedula: '1123561461', name: 'Alexandra Orosco (Laboratorio)' }
@@ -269,7 +270,7 @@ async function testSalaryCalculations() {
     const min = Math.min(...salarios)
     const max = Math.max(...salarios)
     
-    if (min >= 7000 && max <= 35000) {
+    if (min >= 7000 && max <= 40000) {
       log.success('✅ Rangos salariales correctos')
     } else {
       log.warning(`⚠️ Rangos salariales: $${min} - $${max}`)

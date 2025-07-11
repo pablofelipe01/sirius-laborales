@@ -34,6 +34,9 @@ INSERT INTO employees (cedula, nombre, apodo, salario, cargo, departamento, paus
 ('1016080562', 'Carolina Casas', 'Carolina', 14173.91, 'Asistente Financiera y Contable', 'Administrativo', true, 0, '📊'),
 ('1006416103', 'Yeison Cogua', 'Yeison', 7579.83, 'Redactor Creativo', 'Administrativo', true, 0, '✍️'),
 
+-- PERSONAL DE TECNOLOGÍA (1 empleado)
+('79454772', 'Pablo Acebedo', 'Pablo', 39130.00, 'CTO', 'Tecnología', true, 0, '🚀'),
+
 -- PERSONAL DE PIRÓLISIS (4 empleados)
 ('1006534877', 'Santiago Amaya', 'Santiago', 12225.39, 'Jefe de pirólisis', 'Pirólisis', true, 0, '🔥'),
 ('1122626299', 'Mario Barrera', 'Mario', 7579.83, 'Auxiliar operativo', 'Pirólisis', true, 0, '⚙️'),
@@ -48,7 +51,7 @@ INSERT INTO employees (cedula, nombre, apodo, salario, cargo, departamento, paus
 -- PERSONAL RAAS (1 empleado)
 ('1006774686', 'David Hernández', 'David', 12225.39, 'Ingeniero de desarrollo', 'RAAS', true, 0, '💻');
 
-SELECT '✅ 13 empleados reales insertados correctamente' as resultado;
+SELECT '✅ 14 empleados reales insertados correctamente' as resultado;
 
 -- =====================================================
 -- 3. VERIFICAR DATOS CORRECTOS
@@ -59,7 +62,7 @@ SELECT '📊 VERIFICACIÓN POST-LIMPIEZA' as categoria;
 -- Verificar total de empleados
 SELECT 
     COUNT(*) as total_empleados,
-    CASE WHEN COUNT(*) = 13 THEN '✅ CORRECTO' ELSE '❌ INCORRECTO' END as estado
+    CASE WHEN COUNT(*) = 14 THEN '✅ CORRECTO' ELSE '❌ INCORRECTO' END as estado
 FROM employees;
 
 -- Verificar admin
@@ -72,7 +75,7 @@ SELECT
 FROM employees 
 WHERE cedula = '1019090206';
 
--- Verificar departamentos (debe ser exactamente 4)
+-- Verificar departamentos (debe ser exactamente 5)
 SELECT 
     departamento,
     COUNT(*) as empleados
@@ -82,7 +85,7 @@ ORDER BY empleados DESC;
 
 SELECT 
     COUNT(DISTINCT departamento) as total_departamentos,
-    CASE WHEN COUNT(DISTINCT departamento) = 4 THEN '✅ CORRECTO (4 departamentos)' 
+    CASE WHEN COUNT(DISTINCT departamento) = 5 THEN '✅ CORRECTO (5 departamentos)' 
          ELSE '❌ INCORRECTO' 
     END as estado
 FROM employees;
@@ -94,7 +97,7 @@ SELECT
     ROUND(MAX(salario), 2) as maximo,
     ROUND(AVG(salario), 2) as promedio,
     CASE 
-        WHEN MIN(salario) >= 7000 AND MAX(salario) <= 35000 THEN '✅ RANGOS CORRECTOS'
+        WHEN MIN(salario) >= 7000 AND MAX(salario) <= 40000 THEN '✅ RANGOS CORRECTOS'
         ELSE '❌ RANGOS INCORRECTOS'
     END as estado
 FROM employees;
@@ -124,6 +127,16 @@ INSERT INTO hours_summary (
     26956.52 * 8,
     26956.52 * 8,
     2
+),
+-- Pablo (CTO) - Jornada estratégica
+(
+    (SELECT id FROM employees WHERE cedula = 'PABLOCTO2024'),
+    CURRENT_DATE,
+    8.0,
+    9.0,
+    39130.00 * 8,
+    (39130.00 * 8) + (39130.00 * 1 * 1.25),
+    3
 ),
 -- Santiago (Jefe) - Con 2 horas extra
 (
@@ -168,6 +181,13 @@ SELECT
     'Admin configurado' as aspecto,
     CASE WHEN EXISTS(SELECT 1 FROM employees WHERE cedula = '1019090206') 
          THEN 'Luisa Ramírez ✅' 
+         ELSE 'NO CONFIGURADO ❌' 
+    END as valor
+UNION ALL
+SELECT 
+    'CTO configurado' as aspecto,
+    CASE WHEN EXISTS(SELECT 1 FROM employees WHERE cedula = 'PABLOCTO2024') 
+         THEN 'Pablo Acebedo ✅' 
          ELSE 'NO CONFIGURADO ❌' 
     END as valor
 UNION ALL
