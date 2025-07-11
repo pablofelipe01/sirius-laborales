@@ -9,6 +9,7 @@ import { SaludoAnimado, MensajeRapido } from '@/components/ui/SaludoAnimado'
 import { PlantaCrecimiento } from '@/components/ui/PlantaCrecimiento'
 import { NotificationSetup } from '@/components/ui/NotificationSetup'
 import { VisualReminders } from '@/components/ui/VisualReminders'
+import { OvertimeNotification } from '@/components/ui/OvertimeNotification'
 import { useNotifications } from '@/lib/useNotifications'
 import { SiriusDB, TimeRecord } from '@/lib/supabase'
 import { calculateWorkHours } from '@/lib/utils'
@@ -44,6 +45,14 @@ export default function DashboardPage() {
   const [isRecording, setIsRecording] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'info' | 'warning' }>()
   const [showCelebration, setShowCelebration] = useState(false)
+  const [showOvertimeNotification, setShowOvertimeNotification] = useState(false)
+  const [overtimeData, setOvertimeData] = useState<{
+    currentHours: number
+    maxRegularHours: number
+    isDomingoFestivo?: boolean
+    isSundayOrHoliday?: boolean
+    reason?: string
+  }>({ currentHours: 0, maxRegularHours: 8 })
 
   // Redirigir a login si no está autenticado
   useEffect(() => {
@@ -145,6 +154,28 @@ export default function DashboardPage() {
   const registrarTiempo = async (tipo: TimeRecord['tipo']) => {
     if (!employee) return
 
+    // VERIFICACIÓN PREVIA: Si va a registrar entrada, verificar si es domingo/festivo
+    if (tipo === 'entrada') {
+      try {
+        const authResult = await SiriusDB.shouldRequestOvertimeAuthorization(employee.id)
+        
+        if (authResult.needsAuthorization && authResult.isSundayOrHoliday) {
+          // Es domingo/festivo sin autorización - mostrar notificación antes de permitir trabajar
+          setOvertimeData({
+            currentHours: authResult.currentHours,
+            maxRegularHours: authResult.maxRegularHours,
+            isDomingoFestivo: authResult.isDomingoFestivo,
+            isSundayOrHoliday: authResult.isSundayOrHoliday,
+            reason: authResult.reason
+          })
+          setShowOvertimeNotification(true)
+          return // No permitir registrar entrada hasta que tenga autorización
+        }
+      } catch (error) {
+        console.error('Error verificando autorización previa:', error)
+      }
+    }
+
     setIsRecording(true)
     
     try {
@@ -184,6 +215,11 @@ export default function DashboardPage() {
         // Recargar datos
         await loadDashboardData()
         
+        // Verificar si necesita autorización para horas extras (solo en días ordinarios después de trabajar)
+        if (tipo !== 'salida') {
+          await checkOvertimeAuthorization()
+        }
+        
         // Limpiar mensaje después de 5 segundos
         setTimeout(() => setMessage(undefined), 5000)
       } else {
@@ -200,6 +236,57 @@ export default function DashboardPage() {
       })
     } finally {
       setIsRecording(false)
+    }
+  }
+
+  // Verificar si necesita autorización para horas extras
+  const checkOvertimeAuthorization = async () => {
+    if (!employee) return
+
+    try {
+      const result = await SiriusDB.shouldRequestOvertimeAuthorization(employee.id)
+      
+      if (result.needsAuthorization) {
+        setOvertimeData({
+          currentHours: result.currentHours,
+          maxRegularHours: result.maxRegularHours,
+          isDomingoFestivo: result.isDomingoFestivo,
+          isSundayOrHoliday: result.isSundayOrHoliday,
+          reason: result.reason
+        })
+        setShowOvertimeNotification(true)
+      }
+    } catch (error) {
+      console.error('Error verificando autorización de horas extras:', error)
+    }
+  }
+
+  // Enviar solicitud de horas extras
+  const handleOvertimeRequest = async (request: {
+    horasEstimadas: number
+    motivo: string
+    justificacion: string
+  }) => {
+    if (!employee) {
+      return { success: false, message: 'Error: usuario no autenticado' }
+    }
+
+    try {
+      const result = await SiriusDB.createOvertimeRequest({
+        employeeId: employee.id,
+        fecha: new Date().toISOString().split('T')[0],
+        horasEstimadas: request.horasEstimadas,
+        motivo: request.motivo,
+        justificacion: request.justificacion
+      })
+
+      return result
+    } catch (error) {
+      console.error('Error enviando solicitud de horas extras:', error)
+      return {
+        success: false,
+        message: 'Error inesperado al enviar la solicitud'
+      }
     }
   }
 
@@ -502,6 +589,19 @@ export default function DashboardPage() {
 
       {/* Sistema de recordatorios visuales para Safari/iOS */}
       <VisualReminders enabled={useVisualFallback} />
+
+      {/* Notificación de horas extras */}
+      {showOvertimeNotification && (
+        <OvertimeNotification
+          employeeName={employee.apodo || employee.nombre}
+          currentHours={overtimeData.currentHours}
+          isDomingoFestivo={overtimeData.isDomingoFestivo}
+          isSundayOrHoliday={overtimeData.isSundayOrHoliday}
+          reason={overtimeData.reason}
+          onRequestSubmit={handleOvertimeRequest}
+          onDismiss={() => setShowOvertimeNotification(false)}
+        />
+      )}
 
       {/* Celebración */}
       <AnimatePresence>

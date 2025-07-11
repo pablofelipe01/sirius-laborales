@@ -166,15 +166,15 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
   const getColorForType = (type: VisualReminder['type']) => {
     switch (type) {
       case 'pausa-activa':
-        return 'from-green-500 to-emerald-600';
+        return 'from-green-500 to-emerald-600 dark:from-green-400 dark:to-emerald-500';
       case 'almuerzo':
-        return 'from-orange-500 to-amber-600';
+        return 'from-orange-500 to-amber-600 dark:from-orange-400 dark:to-amber-500';
       case 'fin-jornada':
-        return 'from-blue-500 to-indigo-600';
+        return 'from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500';
       case 'logro':
-        return 'from-purple-500 to-pink-600';
+        return 'from-purple-500 to-pink-600 dark:from-purple-400 dark:to-pink-500';
       default:
-        return 'from-green-500 to-emerald-600';
+        return 'from-green-500 to-emerald-600 dark:from-green-400 dark:to-emerald-500';
     }
   };
 
@@ -193,13 +193,13 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
             className="fixed top-4 left-4 right-4 md:left-auto md:right-6 md:max-w-md pointer-events-auto z-50"
           >
             <motion.div
-              className={`bg-gradient-to-r ${getColorForType(reminder.type)} rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md border border-white/20`}
+              className={`bg-gradient-to-r ${getColorForType(reminder.type)} rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md border border-white/30 dark:border-white/20`}
               whileHover={{ scale: 1.02 }}
             >
               {/* Barra de progreso si tiene duración */}
               {reminder.duration && (
                 <motion.div
-                  className="h-1 bg-white/30"
+                  className="h-1 bg-white/40 dark:bg-white/30"
                   initial={{ width: "100%" }}
                   animate={{ width: "0%" }}
                   transition={{ duration: reminder.duration / 1000, ease: "linear" }}
@@ -219,7 +219,7 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
                         repeat: Infinity,
                         repeatDelay: 1
                       }}
-                      className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white"
+                      className="w-12 h-12 bg-white/30 dark:bg-white/20 rounded-full flex items-center justify-center text-white"
                     >
                       {getIconForType(reminder.type)}
                     </motion.div>
@@ -228,7 +228,7 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
                       <h3 className="font-semibold text-white text-lg leading-tight">
                         {reminder.title}
                       </h3>
-                      <p className="text-white/90 text-sm mt-1 leading-relaxed">
+                      <p className="text-white/95 dark:text-white/90 text-sm mt-1 leading-relaxed">
                         {reminder.message}
                       </p>
                     </div>
@@ -236,7 +236,7 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
 
                   <button
                     onClick={() => removeReminder(reminder.id)}
-                    className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-colors ml-2 flex-shrink-0"
+                    className="w-8 h-8 bg-white/30 dark:bg-white/20 hover:bg-white/40 dark:hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-colors ml-2 flex-shrink-0"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -253,7 +253,7 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
                           // Redirigir a pausa activa
                           window.location.href = '/pausa-activa';
                         }}
-                        className="flex-1 bg-white/20 hover:bg-white/30 text-white rounded-lg py-2 px-3 text-sm font-medium transition-colors"
+                        className="flex-1 bg-white/30 dark:bg-white/20 hover:bg-white/40 dark:hover:bg-white/30 text-white rounded-lg py-2 px-3 text-sm font-medium transition-colors"
                       >
                         🧘‍♀️ Empezar pausa
                       </motion.button>
@@ -262,7 +262,7 @@ export function VisualReminders({ enabled = true }: VisualRemindersProps) {
                     <motion.button
                       whileTap={{ scale: 0.95 }}
                       onClick={() => removeReminder(reminder.id)}
-                      className="px-4 bg-white/10 hover:bg-white/20 text-white rounded-lg py-2 text-sm transition-colors"
+                      className="px-4 bg-white/20 dark:bg-white/10 hover:bg-white/30 dark:hover:bg-white/20 text-white rounded-lg py-2 text-sm transition-colors"
                     >
                       Después
                     </motion.button>

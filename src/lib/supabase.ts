@@ -511,39 +511,98 @@ export class SiriusDB {
     }
   }
 
-  // Crear solicitud de horas extras
-  static async createOvertimeRequest(
-    employeeId: string,
-    tipo: OvertimeRequest['tipo'],
-    fecha: string,
-    horasEstimadas: number,
-    motivo: string,
-    justificacion?: string
-  ): Promise<OvertimeRequest | null> {
+  // Crear solicitud de horas extras (versión mejorada)
+  static async createOvertimeRequest(request: {
+    employeeId: string
+    fecha: string
+    horasEstimadas: number
+    motivo: string
+    justificacion: string
+  }): Promise<{ success: boolean; message: string; data?: any }> {
     try {
+      // Verificar si ya existe una solicitud para hoy
+      const { data: existingRequest } = await supabase
+        .from('overtime_requests')
+        .select('id, estado')
+        .eq('employee_id', request.employeeId)
+        .eq('fecha', request.fecha)
+        .single()
+      
+      if (existingRequest) {
+        if (existingRequest.estado === 'pendiente') {
+          return {
+            success: false,
+            message: 'Ya tienes una solicitud pendiente para hoy. Espera la respuesta de administración.'
+          }
+        } else if (existingRequest.estado === 'aprobado') {
+          return {
+            success: false,
+            message: 'Ya tienes una solicitud aprobada para hoy. Puedes continuar trabajando.'
+          }
+        }
+      }
+      
+      // Determinar tipo de solicitud según el día
+      const fechaDate = new Date(request.fecha)
+      const esDomingo = fechaDate.getDay() === 0
+      const esFestivo = await this.isHolidayDate(fechaDate)
+      
+      let tipoSolicitud: 'extra' | 'dominical' | 'festivo'
+      if (esDomingo) {
+        tipoSolicitud = 'dominical'
+      } else if (esFestivo) {
+        tipoSolicitud = 'festivo'
+      } else {
+        tipoSolicitud = 'extra'
+      }
+      
       const { data, error } = await supabase
         .from('overtime_requests')
         .insert([{
-          employee_id: employeeId,
-          fecha,
-          tipo,
-          horas_estimadas: horasEstimadas,
-          motivo,
-          justificacion,
+          employee_id: request.employeeId,
+          fecha: request.fecha,
+          tipo: tipoSolicitud,
+          horas_estimadas: request.horasEstimadas,
+          motivo: request.motivo,
+          justificacion: request.justificacion,
           estado: 'pendiente'
         }])
         .select()
         .single()
       
       if (error) {
-        console.error('Error creando solicitud de horas extras:', error)
-        return null
+        console.error('Error creando solicitud:', error)
+        return {
+          success: false,
+          message: 'Error al enviar la solicitud. Inténtalo de nuevo.'
+        }
       }
       
-      return data
+      // Mensaje específico según el tipo
+      let mensaje = ''
+      switch (tipoSolicitud) {
+        case 'dominical':
+          mensaje = '¡Solicitud de trabajo dominical enviada! 📅 Luisa revisará tu petición para trabajar este domingo.'
+          break
+        case 'festivo':
+          mensaje = '¡Solicitud de trabajo en festivo enviada! 🎉 Luisa revisará tu petición para trabajar en este día especial.'
+          break
+        case 'extra':
+          mensaje = '¡Solicitud de horas extras enviada! ⏰ Luisa revisará tu petición para trabajar tiempo adicional.'
+          break
+      }
+      
+      return {
+        success: true,
+        message: mensaje,
+        data
+      }
     } catch (error) {
-      console.error('Error en creación de solicitud:', error)
-      return null
+      console.error('Error en createOvertimeRequest:', error)
+      return {
+        success: false,
+        message: 'Error inesperado. Contacta a soporte técnico.'
+      }
     }
   }
 
@@ -1085,6 +1144,191 @@ export class SiriusDB {
     } catch (error) {
       console.error('Error obteniendo ranking de quincena:', error)
       return []
+    }
+  }
+
+  // ========== SISTEMA DE HORAS EXTRAS ==========
+
+  // Verificar si empleado necesita autorización para continuar trabajando
+  static async shouldRequestOvertimeAuthorization(employeeId: string): Promise<{
+    needsAuthorization: boolean
+    reason?: string
+    currentHours: number
+    maxRegularHours: number
+    isDomingoFestivo?: boolean
+    isSundayOrHoliday?: boolean
+  }> {
+    try {
+      const today = new Date()
+      const todayStr = today.toISOString().split('T')[0]
+      
+      // VERIFICAR PRIMERO: ¿Es domingo o festivo? (Requiere autorización desde la primera hora)
+      const esDomingo = today.getDay() === 0
+      const esFestivo = await this.isHolidayDate(today)
+      const esDomingoOFestivo = esDomingo || esFestivo
+      
+      // Si es domingo/festivo, verificar si tiene autorización
+      if (esDomingoOFestivo) {
+        const { data: authorization } = await supabase
+          .from('overtime_requests')
+          .select('id, estado')
+          .eq('employee_id', employeeId)
+          .eq('fecha', todayStr)
+          .eq('estado', 'aprobado')
+          .single()
+        
+        if (!authorization) {
+          const razonDia = esDomingo ? 'domingo' : 'día festivo'
+          return {
+            needsAuthorization: true,
+            reason: `Para trabajar en ${razonDia} necesitas autorización previa de administración.`,
+            currentHours: 0,
+            maxRegularHours: 8,
+            isDomingoFestivo: true,
+            isSundayOrHoliday: true
+          }
+        }
+      }
+      
+      // Obtener horas trabajadas hoy (para verificar límite de 8 horas en días ordinarios)
+      const { data: todayRecords } = await supabase
+        .from('time_records')
+        .select('tipo, timestamp')
+        .eq('employee_id', employeeId)
+        .gte('timestamp', `${todayStr}T00:00:00`)
+        .lte('timestamp', `${todayStr}T23:59:59`)
+        .order('timestamp')
+      
+      if (!todayRecords || todayRecords.length === 0) {
+        return { 
+          needsAuthorization: false, 
+          currentHours: 0, 
+          maxRegularHours: 8,
+          isDomingoFestivo: esDomingoOFestivo,
+          isSundayOrHoliday: esDomingoOFestivo
+        }
+      }
+      
+      // Calcular horas trabajadas
+      let totalHours = 0
+      let currentStatus: string | null = null
+      let startTime: Date | null = null
+      
+      todayRecords.forEach(record => {
+        const recordTime = new Date(record.timestamp)
+        
+        switch (record.tipo) {
+          case 'entrada':
+            startTime = recordTime
+            currentStatus = 'working'
+            break
+          case 'inicio_almuerzo':
+            if (startTime) {
+              totalHours += (recordTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
+            }
+            currentStatus = 'lunch'
+            break
+          case 'fin_almuerzo':
+            startTime = recordTime
+            currentStatus = 'working'
+            break
+          case 'salida':
+            if (startTime) {
+              totalHours += (recordTime.getTime() - startTime.getTime()) / (1000 * 60 * 60)
+            }
+            currentStatus = 'finished'
+            break
+        }
+      })
+      
+      // Si aún está trabajando, calcular hasta ahora
+      if (currentStatus === 'working' && startTime) {
+        totalHours += (new Date().getTime() - startTime.getTime()) / (1000 * 60 * 60)
+      }
+      
+      const maxRegularHours = 8
+      
+      // En días ordinarios: verificar límite de 8 horas
+      if (!esDomingoOFestivo) {
+        const needsAuthorization = totalHours >= maxRegularHours && currentStatus === 'working'
+        
+        let reason = ''
+        if (needsAuthorization) {
+          reason = `Has completado ${totalHours.toFixed(1)} horas de trabajo. Para continuar necesitas autorización para horas extras.`
+        }
+        
+        return {
+          needsAuthorization,
+          reason,
+          currentHours: totalHours,
+          maxRegularHours,
+          isDomingoFestivo: false,
+          isSundayOrHoliday: false
+        }
+      }
+      
+      // Si llegamos aquí, es domingo/festivo con autorización - no hay límite de 8 horas
+      return {
+        needsAuthorization: false,
+        reason: esDomingo ? 'Tienes autorización para trabajar este domingo' : 'Tienes autorización para trabajar este día festivo',
+        currentHours: totalHours,
+        maxRegularHours: 8, // Solo informativo
+        isDomingoFestivo: true,
+        isSundayOrHoliday: true
+      }
+    } catch (error) {
+      console.error('Error verificando autorización de horas extras:', error)
+      return { 
+        needsAuthorization: false, 
+        currentHours: 0, 
+        maxRegularHours: 8,
+        isDomingoFestivo: false,
+        isSundayOrHoliday: false
+      }
+    }
+  }
+
+  // Obtener solicitudes pendientes para admin
+  static async getPendingOvertimeRequests(): Promise<OvertimeRequest[]> {
+    try {
+      const { data, error } = await supabase
+        .from('overtime_requests')
+        .select(`
+          *,
+          employees!inner(nombre, apodo, cedula, cargo, departamento)
+        `)
+        .eq('estado', 'pendiente')
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        console.error('Error obteniendo solicitudes pendientes:', error)
+        return []
+      }
+      
+      return data || []
+    } catch (error) {
+      console.error('Error en getPendingOvertimeRequests:', error)
+      return []
+    }
+  }
+
+  // Verificar si empleado tiene autorización aprobada para trabajar horas extras hoy
+  static async hasApprovedOvertimeForToday(employeeId: string): Promise<boolean> {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      
+      const { data } = await supabase
+        .from('overtime_requests')
+        .select('id')
+        .eq('employee_id', employeeId)
+        .eq('fecha', today)
+        .eq('estado', 'aprobado')
+        .single()
+      
+      return !!data
+    } catch (error) {
+      console.error('Error verificando autorización de horas extras:', error)
+      return false
     }
   }
 } 

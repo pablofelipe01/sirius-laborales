@@ -74,7 +74,7 @@ export function NotificationSetup({ onNotificationsEnabled }: NotificationSetupP
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          className="bg-gradient-to-br from-primary-900/80 to-secondary-900/80 backdrop-blur-sm border border-primary-400/30 rounded-2xl p-6 mb-6 shadow-2xl"
+          className="bg-white dark:bg-gradient-to-br dark:from-primary-900/90 dark:to-secondary-900/90 backdrop-blur-sm border border-sirius-green-main/30 dark:border-primary-400/30 rounded-2xl p-6 mb-6 shadow-2xl"
         >
           <div className="flex items-start space-x-4">
             <motion.div
@@ -93,46 +93,46 @@ export function NotificationSetup({ onNotificationsEnabled }: NotificationSetupP
             </motion.div>
             
             <div className="flex-1">
-              <h3 className="text-xl font-semibold text-primary-100 mb-2">
+              <h3 className="text-xl font-semibold text-sirius-green-dark dark:text-primary-100 mb-2">
                 Activa las Notificaciones SIRIUS
               </h3>
               
-              <p className="text-primary-200/80 mb-4 leading-relaxed">
+              <p className="text-gray-600 dark:text-primary-200/80 mb-4 leading-relaxed">
                 Te ayudamos a mantener el equilibrio durante tu jornada laboral con recordatorios amables:
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
                 <motion.div 
-                  className="bg-primary-800/50 rounded-lg p-3 border border-primary-400/20"
-                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(127, 209, 174, 0.15)' }}
+                  className="bg-sirius-green-light/20 dark:bg-primary-800/50 rounded-lg p-3 border border-sirius-green-main/30 dark:border-primary-400/20"
+                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(127, 209, 174, 0.25)' }}
                 >
                   <div className="flex items-center space-x-2 mb-1">
                     <span className="text-lg">🌱</span>
-                    <span className="text-sm font-medium text-primary-100">Pausas Activas</span>
+                    <span className="text-sm font-medium text-sirius-green-dark dark:text-primary-100">Pausas Activas</span>
                   </div>
-                  <p className="text-xs text-primary-200/70">Cada 2 horas</p>
+                  <p className="text-xs text-gray-600 dark:text-primary-200/70">Cada 2 horas</p>
                 </motion.div>
                 
                 <motion.div 
-                  className="bg-primary-800/50 rounded-lg p-3 border border-primary-400/20"
-                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(127, 209, 174, 0.15)' }}
+                  className="bg-sirius-green-light/20 dark:bg-primary-800/50 rounded-lg p-3 border border-sirius-green-main/30 dark:border-primary-400/20"
+                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(127, 209, 174, 0.25)' }}
                 >
                   <div className="flex items-center space-x-2 mb-1">
                     <span className="text-lg">🍃</span>
-                    <span className="text-sm font-medium text-primary-100">Hora de Almuerzo</span>
+                    <span className="text-sm font-medium text-sirius-green-dark dark:text-primary-100">Hora de Almuerzo</span>
                   </div>
-                  <p className="text-xs text-primary-200/70">Tiempo de nutrir</p>
+                  <p className="text-xs text-gray-600 dark:text-primary-200/70">Tiempo de nutrir</p>
                 </motion.div>
                 
                 <motion.div 
-                  className="bg-primary-800/50 rounded-lg p-3 border border-primary-400/20"
-                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(127, 209, 174, 0.15)' }}
+                  className="bg-sirius-green-light/20 dark:bg-primary-800/50 rounded-lg p-3 border border-sirius-green-main/30 dark:border-primary-400/20"
+                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(127, 209, 174, 0.25)' }}
                 >
                   <div className="flex items-center space-x-2 mb-1">
                     <span className="text-lg">🌟</span>
-                    <span className="text-sm font-medium text-primary-100">Logros</span>
+                    <span className="text-sm font-medium text-sirius-green-dark dark:text-primary-100">Logros</span>
                   </div>
-                  <p className="text-xs text-primary-200/70">Celebra tus avances</p>
+                  <p className="text-xs text-gray-600 dark:text-primary-200/70">Celebra tus avances</p>
                 </motion.div>
               </div>
               
@@ -161,7 +161,7 @@ export function NotificationSetup({ onNotificationsEnabled }: NotificationSetupP
                 
                 <button
                   onClick={() => setShowSetup(false)}
-                  className="px-4 py-2 text-primary-200 hover:text-primary-100 transition-colors text-sm"
+                  className="px-4 py-2 text-gray-600 dark:text-primary-200 hover:text-sirius-green-dark dark:hover:text-primary-100 transition-colors text-sm"
                 >
                   Más tarde
                 </button>
@@ -176,7 +176,7 @@ export function NotificationSetup({ onNotificationsEnabled }: NotificationSetupP
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="bg-primary-900/40 backdrop-blur-sm border border-primary-400/20 rounded-xl p-4 mb-4"
+          className="bg-sirius-green-light/10 dark:bg-primary-900/40 backdrop-blur-sm border border-sirius-green-main/20 dark:border-primary-400/20 rounded-xl p-4 mb-4"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -188,10 +188,10 @@ export function NotificationSetup({ onNotificationsEnabled }: NotificationSetupP
                 🔔
               </motion.span>
               <div>
-                <h4 className="text-sm font-medium text-primary-100">
+                <h4 className="text-sm font-medium text-sirius-green-dark dark:text-primary-100">
                   Notificaciones Activas
                 </h4>
-                <p className="text-xs text-primary-200/70">
+                <p className="text-xs text-gray-600 dark:text-primary-200/70">
                   Te cuidamos durante tu jornada
                 </p>
               </div>
@@ -199,7 +199,7 @@ export function NotificationSetup({ onNotificationsEnabled }: NotificationSetupP
             
             <button
               onClick={testNotification}
-              className="text-xs px-3 py-1 bg-primary-600/30 hover:bg-primary-600/50 text-primary-100 rounded-lg transition-colors"
+              className="text-xs px-3 py-1 bg-sirius-green-main/20 dark:bg-primary-600/30 hover:bg-sirius-green-main/30 dark:hover:bg-primary-600/50 text-sirius-green-dark dark:text-primary-100 rounded-lg transition-colors"
             >
               Probar
             </button>

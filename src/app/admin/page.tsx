@@ -119,6 +119,15 @@ export default function AdminDashboard() {
       stats: `${stats.horasDelDia}h equipo`
     },
     {
+      id: 'solicitudes',
+      title: 'Solicitudes de Horas Extras',
+      description: 'Autorizar tiempo adicional',
+      icon: <AlertCircle className="w-8 h-8" />,
+      color: 'orange-500',
+      route: '/admin/solicitudes',
+      stats: `${stats.solicitudesPendientes} pendiente${stats.solicitudesPendientes !== 1 ? 's' : ''}`
+    },
+    {
       id: 'nomina',
       title: 'Sistema de Nómina',
       description: 'Cálculos y pagos laborales',
