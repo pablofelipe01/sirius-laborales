@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { calculateHoursBreakdown, getTotalPay, validateWorkingLimits, type HoursBreakdown, type WorkPeriod } from './calculations'
 import { getAllHolidays, isHoliday, isSundayOrHoliday, type Holiday } from './holidays'
+import { getTodayLocal } from './utils'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -154,7 +155,7 @@ export class SiriusDB {
         .insert([{
           employee_id: employeeId,
           tipo,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date().toISOString(), // Ya incluye 'Z' automáticamente
           mensaje_motivacional: mensajeMotivacional
         }])
         .select()
@@ -175,7 +176,7 @@ export class SiriusDB {
   // Obtener registros del día actual
   static async getTodayRecords(employeeId: string): Promise<TimeRecord[]> {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayLocal()
       
       const { data, error } = await supabase
         .from('time_records')
@@ -328,7 +329,7 @@ export class SiriusDB {
   // Calcular y guardar resumen de horas del día
   static async calculateAndSaveDailyHours(
     employeeId: string,
-    fecha: string = new Date().toISOString().split('T')[0]
+    fecha: string = getTodayLocal()
   ): Promise<HoursSummary | null> {
     try {
       // Obtener empleado con salario
@@ -431,7 +432,7 @@ export class SiriusDB {
   }> {
     try {
       // Obtener horas de hoy
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayLocal()
       const { data: todaySummary } = await supabase
         .from('hours_summary')
         .select('total_horas')
@@ -489,7 +490,7 @@ export class SiriusDB {
   // Obtener pausas activas del día
   static async getTodayActiveBreaks(employeeId: string): Promise<ActiveBreak[]> {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayLocal()
       
       const { data, error } = await supabase
         .from('active_breaks')
@@ -629,7 +630,7 @@ export class SiriusDB {
   static async getEmployeeStats(employeeId: string, startDate?: string, endDate?: string) {
     try {
       const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      const end = endDate || new Date().toISOString().split('T')[0]
+      const end = endDate || getTodayLocal()
       
       const { data, error } = await supabase
         .from('hours_summary')
@@ -656,7 +657,7 @@ export class SiriusDB {
   // Obtener estadísticas generales para el dashboard administrativo
   static async getAdminStats() {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayLocal()
       
       // Contar empleados totales
       const { count: totalEmpleados } = await supabase
@@ -720,7 +721,7 @@ export class SiriusDB {
   // Obtener empleados activos hoy con su estado
   static async getActiveEmployeesToday() {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayLocal()
       
       // Obtener empleados que registraron entrada hoy
       const { data: empleadosConEntrada } = await supabase
@@ -807,8 +808,9 @@ export class SiriusDB {
   // Obtener todos los empleados con estadísticas completas
   static async getAllEmployeesWithStats(fecha?: string) {
     try {
-      const targetDate = fecha || new Date().toISOString().split('T')[0]
+      const targetDate = fecha || getTodayLocal()
       
+      // Obtener todos los empleados con sus datos de hours_summary (si existen)
       const { data: empleados, error } = await supabase
         .from('employees')
         .select(`
@@ -832,21 +834,170 @@ export class SiriusDB {
             extra_dominical_diurna,
             extra_dominical_nocturna,
             extra_festiva_diurna,
-            extra_festiva_nocturna
+            extra_festiva_nocturna,
+            pausas_activas_realizadas
           )
         `)
-        .eq('activo', true)
         .eq('hours_summary.fecha', targetDate)
-        .order('nombre', { ascending: true })
-      
+        .eq('activo', true)
+        .order('nombre')
+
       if (error) {
-        console.error('Error obteniendo empleados con estadísticas:', error)
+        console.error('Error obteniendo empleados:', error)
         return []
       }
-      
-      return empleados || []
+
+      if (!empleados) return []
+
+      // Para cada empleado, obtener su estado actual y TODOS los registros del día
+      const empleadosConEstado = await Promise.all(
+        empleados.map(async (empleado) => {
+          try {
+            // Obtener TODOS los registros del día ordenados cronológicamente
+            const { data: todosLosRegistros } = await supabase
+              .from('time_records')
+              .select('tipo, timestamp')
+              .eq('employee_id', empleado.id)
+              .gte('timestamp', `${targetDate}T00:00:00`)
+              .lt('timestamp', `${targetDate}T23:59:59`)
+              .order('timestamp', { ascending: true })
+            
+            // Obtener último registro para determinar estado
+            const ultimoRegistro = todosLosRegistros && todosLosRegistros.length > 0 
+              ? todosLosRegistros[todosLosRegistros.length - 1] 
+              : null
+            
+            // Determinar estado actual basado en último registro
+            let estado = 'Ausente'
+            if (ultimoRegistro) {
+              switch (ultimoRegistro.tipo) {
+                case 'entrada':
+                case 'fin_almuerzo':
+                case 'fin_pausa_activa':
+                  estado = 'Trabajando'
+                  break
+                case 'inicio_almuerzo':
+                  estado = 'En almuerzo'
+                  break
+                case 'inicio_pausa_activa':
+                  estado = 'En pausa activa'
+                  break
+                case 'salida':
+                  estado = 'Terminado'
+                  break
+              }
+            }
+
+            // Organizar registros por tipo para fácil acceso
+            const registrosPorTipo = {
+              entrada: todosLosRegistros?.find(r => r.tipo === 'entrada'),
+              inicio_almuerzo: todosLosRegistros?.find(r => r.tipo === 'inicio_almuerzo'),
+              fin_almuerzo: todosLosRegistros?.find(r => r.tipo === 'fin_almuerzo'),
+              salida: todosLosRegistros?.find(r => r.tipo === 'salida')
+            }
+
+            // 🔥 NUEVA LÓGICA: Calcular horas en tiempo real para empleados activos
+            let horasCalculadas = {
+              total_horas: 0,
+              horas_ordinarias: 0,
+              horas_extra_diurnas: 0,
+              horas_extra_nocturnas: 0,
+              horas_nocturnas: 0,
+              total_pago: 0
+            }
+
+            // Si tiene datos en hours_summary (jornada completada), usar esos
+            const hoursSummaryData = empleado.hours_summary && empleado.hours_summary.length > 0 
+              ? empleado.hours_summary[0] 
+              : null
+
+            if (hoursSummaryData) {
+              // Jornada completada: usar datos de hours_summary
+              horasCalculadas = {
+                total_horas: hoursSummaryData.total_horas || 0,
+                horas_ordinarias: hoursSummaryData.horas_ordinarias || 0,
+                horas_extra_diurnas: hoursSummaryData.horas_extra_diurnas || 0,
+                horas_extra_nocturnas: hoursSummaryData.horas_extra_nocturnas || 0,
+                horas_nocturnas: hoursSummaryData.horas_nocturnas || 0,
+                total_pago: hoursSummaryData.total_pago || 0
+              }
+            } else if (registrosPorTipo.entrada && estado !== 'Ausente') {
+              // Empleado activo sin jornada completada: calcular en tiempo real
+              const { calculateWorkHours } = await import('./utils')
+              
+              const entrada = registrosPorTipo.entrada
+              const salida = registrosPorTipo.salida
+              const inicioAlmuerzo = registrosPorTipo.inicio_almuerzo
+              const finAlmuerzo = registrosPorTipo.fin_almuerzo
+              
+              // Calcular horas trabajadas hasta ahora
+              if (salida) {
+                // Si hay salida, usar tiempo de salida
+                horasCalculadas.total_horas = calculateWorkHours(
+                  entrada.timestamp,
+                  salida.timestamp,
+                  inicioAlmuerzo?.timestamp,
+                  finAlmuerzo?.timestamp
+                )
+              } else {
+                // Si no hay salida, calcular hasta ahora para empleados activos
+                const estaActivo = ultimoRegistro && ultimoRegistro.tipo !== 'salida'
+                if (estaActivo) {
+                  horasCalculadas.total_horas = calculateWorkHours(
+                    entrada.timestamp,
+                    new Date().toISOString(),
+                    inicioAlmuerzo?.timestamp,
+                    finAlmuerzo?.timestamp
+                  )
+                }
+              }
+              
+              // Para tiempo real, clasificar como ordinarias por simplicidad
+              // (el cálculo completo se hará cuando registre salida)
+              horasCalculadas.horas_ordinarias = Math.min(horasCalculadas.total_horas, 8)
+              horasCalculadas.horas_extra_diurnas = Math.max(0, horasCalculadas.total_horas - 8)
+              horasCalculadas.total_pago = horasCalculadas.total_horas * (empleado.salario_hora || empleado.salario || 15000)
+            }
+
+            return {
+              ...empleado,
+              estado,
+              ultimo_acceso: ultimoRegistro?.timestamp || null,
+              registros_del_dia: registrosPorTipo,
+              todos_los_registros: todosLosRegistros || [],
+              // 🔥 NUEVOS CAMPOS: Horas calculadas en tiempo real
+              total_horas: horasCalculadas.total_horas,
+              horas_ordinarias: horasCalculadas.horas_ordinarias,
+              horas_extra_diurnas: horasCalculadas.horas_extra_diurnas,
+              horas_extra_nocturnas: horasCalculadas.horas_extra_nocturnas,
+              horas_nocturnas: horasCalculadas.horas_nocturnas,
+              horas_semanales: 0, // TODO: Implementar cálculo semanal
+              total_pago: horasCalculadas.total_pago
+            }
+          } catch (regError) {
+            // Si hay error obteniendo registros, mantener como ausente
+            console.warn(`Error obteniendo registros para empleado ${empleado.id}:`, regError)
+            return {
+              ...empleado,
+              estado: 'Ausente',
+              ultimo_acceso: null,
+              registros_del_dia: {},
+              todos_los_registros: [],
+              total_horas: 0,
+              horas_ordinarias: 0,
+              horas_extra_diurnas: 0,
+              horas_extra_nocturnas: 0,
+              horas_nocturnas: 0,
+              horas_semanales: 0,
+              total_pago: 0
+            }
+          }
+        })
+      )
+
+      return empleadosConEstado
     } catch (error) {
-      console.error('Error en obtención de empleados con estadísticas:', error)
+      console.error('Error en getAllEmployeesWithStats:', error)
       return []
     }
   }
@@ -1317,7 +1468,7 @@ export class SiriusDB {
   // Verificar si empleado tiene autorización aprobada para trabajar horas extras hoy
   static async hasApprovedOvertimeForToday(employeeId: string): Promise<boolean> {
     try {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayLocal()
       
       const { data } = await supabase
         .from('overtime_requests')

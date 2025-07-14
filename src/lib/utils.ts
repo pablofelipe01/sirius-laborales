@@ -34,15 +34,23 @@ export function getTimeOfDayGreeting(): string {
 }
 
 export function calculateWorkHours(startTime: string, endTime: string, lunchStart?: string, lunchEnd?: string): number {
-  const start = new Date(startTime).getTime()
-  const end = new Date(endTime).getTime()
+  // Normalizar timestamps agregando 'Z' si no tienen timezone indicator
+  const normalizeTimestamp = (timestamp: string): string => {
+    if (!timestamp.endsWith('Z') && !timestamp.includes('+') && !timestamp.includes('-', 19)) {
+      return timestamp + 'Z'
+    }
+    return timestamp
+  }
+  
+  const start = new Date(normalizeTimestamp(startTime)).getTime()
+  const end = new Date(normalizeTimestamp(endTime)).getTime()
   
   let totalMinutes = (end - start) / (1000 * 60)
   
   // Restar tiempo de almuerzo si existe
   if (lunchStart && lunchEnd) {
-    const lunchStartTime = new Date(lunchStart).getTime()
-    const lunchEndTime = new Date(lunchEnd).getTime()
+    const lunchStartTime = new Date(normalizeTimestamp(lunchStart)).getTime()
+    const lunchEndTime = new Date(normalizeTimestamp(lunchEnd)).getTime()
     const lunchMinutes = (lunchEndTime - lunchStartTime) / (1000 * 60)
     totalMinutes -= lunchMinutes
   }
@@ -61,4 +69,38 @@ export function isWorkingHours(): boolean {
 
 export function getRandomMessage(messages: string[]): string {
   return messages[Math.floor(Math.random() * messages.length)]
+}
+
+// Función para obtener la fecha actual en zona horaria local (formato YYYY-MM-DD)
+export function getTodayLocal(): string {
+  return new Date().toLocaleDateString('en-CA') // en-CA da formato YYYY-MM-DD
+}
+
+// Función para convertir timestamp UTC a hora de Colombia y formatear
+export function formatTimeInColombia(timestamp: string): string {
+  try {
+    // Si el timestamp no tiene timezone indicator, asumimos que es UTC
+    let utcTimestamp = timestamp
+    if (!timestamp.endsWith('Z') && !timestamp.includes('+') && !timestamp.includes('-', 19)) {
+      utcTimestamp = timestamp + 'Z'
+    }
+    
+    const utcDate = new Date(utcTimestamp)
+    
+    // Usar timeZone específico para Colombia (America/Bogota)
+    return utcDate.toLocaleTimeString('es-CO', { 
+      timeZone: 'America/Bogota',
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    })
+  } catch (error) {
+    console.error('Error formateando hora:', error)
+    return '-- : --'
+  }
+}
+
+// Función para obtener timestamp actual pero respetando zona horaria local para comparaciones
+export function getNowLocal(): string {
+  return new Date().toISOString()
 } 

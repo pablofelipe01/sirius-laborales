@@ -12,7 +12,7 @@ import { VisualReminders } from '@/components/ui/VisualReminders'
 import { OvertimeNotification } from '@/components/ui/OvertimeNotification'
 import { useNotifications } from '@/lib/useNotifications'
 import { SiriusDB, TimeRecord } from '@/lib/supabase'
-import { calculateWorkHours } from '@/lib/utils'
+import { calculateWorkHours, getTodayLocal } from '@/lib/utils'
 import { 
   Clock, 
   Heart, 
@@ -274,7 +274,7 @@ export default function DashboardPage() {
     try {
       const result = await SiriusDB.createOvertimeRequest({
         employeeId: employee.id,
-        fecha: new Date().toISOString().split('T')[0],
+        fecha: getTodayLocal(),
         horasEstimadas: request.horasEstimadas,
         motivo: request.motivo,
         justificacion: request.justificacion

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { SiriusButton } from '@/components/ui/SiriusButton'
 import { SiriusDB } from '@/lib/supabase'
+import { getTodayLocal, formatTimeInColombia } from '@/lib/utils'
 import { 
   Clock, 
   ArrowLeft,
@@ -37,6 +38,12 @@ interface EmpleadoActivo {
   pagoTotal: number;
   ultimaActividad: string;
   alertas: string[];
+  registros_del_dia?: {
+    entrada?: { timestamp: string };
+    inicio_almuerzo?: { timestamp: string };
+    fin_almuerzo?: { timestamp: string };
+    salida?: { timestamp: string };
+  };
 }
 
 export default function ControlHorasAdmin() {
@@ -46,7 +53,7 @@ export default function ControlHorasAdmin() {
   const [empleadosActivos, setEmpleadosActivos] = useState<EmpleadoActivo[]>([])
   const [loading, setLoading] = useState(true)
   const [mostrarDetalle, setMostrarDetalle] = useState<string | null>(null)
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(getTodayLocal())
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -88,7 +95,8 @@ export default function ControlHorasAdmin() {
         horasSemanales: emp.horas_semanales || 0,
         pagoTotal: emp.total_pago || 0,
         ultimaActividad: emp.ultimo_acceso || new Date().toISOString(),
-        alertas: []
+        alertas: [],
+        registros_del_dia: emp.registros_del_dia
       }))
       
       setEmpleadosActivos(empleadosFormateados)
@@ -434,25 +442,37 @@ export default function ControlHorasAdmin() {
                       <div className="bg-green-100 p-3 rounded-lg border-2 border-green-300">
                         <p className="text-xs font-bold text-green-800">Entrada</p>
                         <p className="text-lg font-bold text-green-900">
-                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          {empleado.registros_del_dia?.entrada 
+                            ? formatTimeInColombia(empleado.registros_del_dia.entrada.timestamp)
+                            : '-- : --'
+                          }
                         </p>
                       </div>
                       <div className="bg-yellow-100 p-3 rounded-lg border-2 border-yellow-300">
                         <p className="text-xs font-bold text-yellow-800">Inicio Almuerzo</p>
                         <p className="text-lg font-bold text-yellow-900">
-                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          {empleado.registros_del_dia?.inicio_almuerzo 
+                            ? formatTimeInColombia(empleado.registros_del_dia.inicio_almuerzo.timestamp)
+                            : '-- : --'
+                          }
                         </p>
                       </div>
                       <div className="bg-yellow-100 p-3 rounded-lg border-2 border-yellow-300">
                         <p className="text-xs font-bold text-yellow-800">Fin Almuerzo</p>
                         <p className="text-lg font-bold text-yellow-900">
-                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          {empleado.registros_del_dia?.fin_almuerzo 
+                            ? formatTimeInColombia(empleado.registros_del_dia.fin_almuerzo.timestamp)
+                            : '-- : --'
+                          }
                         </p>
                       </div>
                       <div className="bg-blue-100 p-3 rounded-lg border-2 border-blue-300">
                         <p className="text-xs font-bold text-blue-800">Salida</p>
                         <p className="text-lg font-bold text-blue-900">
-                          {new Date(empleado.ultimaActividad).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          {empleado.registros_del_dia?.salida 
+                            ? formatTimeInColombia(empleado.registros_del_dia.salida.timestamp)
+                            : '-- : --'
+                          }
                         </p>
                       </div>
                     </div>
