@@ -102,11 +102,15 @@ export default function NominaPage() {
   }
 
   const getTotalPayroll = () => {
-    return payrollData.reduce((total, item) => total + item.summary.total_pago, 0)
+    return payrollData.reduce((total, item) => {
+      return total + (item.summary?.total_pago || 0)
+    }, 0)
   }
 
   const getTotalHours = () => {
-    return payrollData.reduce((total, item) => total + item.summary.total_horas, 0)
+    return payrollData.reduce((total, item) => {
+      return total + (item.summary?.total_horas || 0)
+    }, 0)
   }
 
   if (loading) {

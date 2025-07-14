@@ -1080,7 +1080,38 @@ export class SiriusDB {
         return []
       }
       
-      return data || []
+      // Transformar datos al formato esperado por la página de nómina
+      const transformedData = (data || []).map((record: any) => ({
+        employee: {
+          id: record.employee_id,
+          nombre: record.employees.nombre,
+          cedula: record.employees.cedula,
+          apodo: record.employees.apodo || '',
+          salario: record.employees.salario_hora
+        },
+        summary: {
+          fecha: record.fecha,
+          horas_ordinarias: record.horas_ordinarias || 0,
+          horas_extra_diurnas: record.horas_extra_diurnas || 0,
+          horas_extra_nocturnas: record.horas_extra_nocturnas || 0,
+          horas_nocturnas: record.horas_nocturnas || 0,
+          horas_dominicales_diurnas: record.horas_dominicales_diurnas || 0,
+          horas_dominicales_nocturnas: record.horas_dominicales_nocturnas || 0,
+          horas_festivas_diurnas: record.horas_festivas_diurnas || 0,
+          horas_festivas_nocturnas: record.horas_festivas_nocturnas || 0,
+          total_horas: record.total_horas || 0,
+          salario_base: record.salario_base || 0,
+          recargo_nocturno: record.recargo_nocturno || 0,
+          recargo_dominical: record.recargo_dominical || 0,
+          recargo_festivo: record.recargo_festivo || 0,
+          extra_diurna: record.extra_diurna || 0,
+          extra_nocturna: record.extra_nocturna || 0,
+          total_pago: record.total_pago || 0,
+          pausas_activas_realizadas: record.pausas_activas_realizadas || 0
+        }
+      }))
+      
+      return transformedData
     } catch (error) {
       console.error('Error en reporte de nómina:', error)
       return []
