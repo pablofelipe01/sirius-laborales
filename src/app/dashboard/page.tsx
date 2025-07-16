@@ -7,10 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { SiriusButton, TimeActionButton } from '@/components/ui/SiriusButton'
 import { SaludoAnimado, MensajeRapido } from '@/components/ui/SaludoAnimado'
 import { PlantaCrecimiento } from '@/components/ui/PlantaCrecimiento'
-import { NotificationSetup } from '@/components/ui/NotificationSetup'
-import { VisualReminders } from '@/components/ui/VisualReminders'
 import { OvertimeNotification } from '@/components/ui/OvertimeNotification'
-import { useNotifications } from '@/lib/useNotifications'
 import { SiriusDB, TimeRecord } from '@/lib/supabase'
 import { calculateWorkHours, getTodayLocal } from '@/lib/utils'
 import { 
@@ -33,7 +30,6 @@ interface DashboardStats {
 export default function DashboardPage() {
   const { employee, logout, isLoading } = useAuth()
   const router = useRouter()
-  const { setupWorkdayReminders, notifyAchievement, permission, useVisualFallback } = useNotifications()
   
   const [stats, setStats] = useState<DashboardStats>({
     horasHoy: 0,
@@ -192,20 +188,6 @@ export default function DashboardPage() {
       if (registro) {
         setMessage({ text: mensajeMotivacional, type: 'success' })
         
-        // Configurar notificaciones automáticas cuando se registre entrada
-        if (tipo === 'entrada' && permission === 'granted') {
-          setupWorkdayReminders()
-        }
-        
-        // Notificaciones de logros para eventos importantes
-        if (permission === 'granted') {
-          if (tipo === 'entrada') {
-            notifyAchievement('¡Has iniciado un nuevo día de crecimiento! 🌱')
-          } else if (tipo === 'salida') {
-            notifyAchievement('¡Jornada completada con éxito! Has cuidado tu bienestar 🌟')
-          }
-        }
-        
         // Mostrar celebración para ciertos eventos
         if (tipo === 'entrada' || tipo === 'salida') {
           setShowCelebration(true)
@@ -292,7 +274,7 @@ export default function DashboardPage() {
 
   const getEstadoMessage = () => {
     const messages = {
-      sin_actividad: 'Listo para comenzar tu día 🌅',
+      sin_actividad: 'Listo para empezar el día ☀️',
       trabajando: 'Estás en modo productivo 💪',
       almorzando: '¡Disfruta tu almuerzo! 🍽️',
       pausa_activa: 'Momento de recargar energías 🧘',
@@ -471,15 +453,6 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
-        {/* Sistema de notificaciones */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.6 }}
-        >
-          <NotificationSetup />
-        </motion.div>
-
         {/* Botones de acción principales */}
         <motion.div
           className="bg-white/95 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/30"
@@ -541,103 +514,62 @@ export default function DashboardPage() {
             <SiriusButton
               variant="pausa"
               size="lg"
-              onClick={() => router.push('/pausa-activa')}
-              className="flex flex-col items-center gap-2 h-20"
+              onClick={() => registrarTiempo('inicio_pausa_activa')}
+              disabled={isRecording || stats.estado === 'pausa_activa'}
             >
-              <Heart className="w-6 h-6" />
-              <span>Pausa Activa</span>
-              <span className="text-xs opacity-80">Cuida tu bienestar</span>
+              {stats.estado === 'pausa_activa' ? 'En pausa activa' : 'Pausa activa'}
             </SiriusButton>
           </div>
         </motion.div>
 
-        {/* Jardín personal */}
+        {/* Planta de crecimiento */}
         <motion.div
-          className="bg-white/95 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/30"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
         >
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">
-            Tu jardín personal {employee.emoji_favorito}
-          </h3>
-          
-          <div className="flex justify-center">
-            <PlantaCrecimiento
-              nivel={Math.min(10, Math.max(1, stats.rachaActual))}
-              tipo="suculenta"
-              size="lg"
-              animation={true}
-            />
-          </div>
-          
-          <div className="text-center mt-4">
-            <p className="text-gray-600">
-              Cada pausa activa ayuda a crecer tu planta
-            </p>
-            <SiriusButton
-              variant="secondary"
-              size="sm"
-              className="mt-3"
-              onClick={() => router.push('/jardin')}
-            >
-              Ver jardín completo 🌿
-            </SiriusButton>
-          </div>
+          <PlantaCrecimiento 
+            nivel={Math.min(Math.floor(stats.horasHoy), 8)}
+            size="lg"
+            animation={true}
+          />
         </motion.div>
-      </div>
 
-      {/* Sistema de recordatorios visuales para Safari/iOS */}
-      <VisualReminders enabled={useVisualFallback} />
-
-      {/* Notificación de horas extras */}
-      {showOvertimeNotification && (
-        <OvertimeNotification
-          employeeName={employee.apodo || employee.nombre}
-          currentHours={overtimeData.currentHours}
-          isDomingoFestivo={overtimeData.isDomingoFestivo}
-          isSundayOrHoliday={overtimeData.isSundayOrHoliday}
-          reason={overtimeData.reason}
-          onRequestSubmit={handleOvertimeRequest}
-          onDismiss={() => setShowOvertimeNotification(false)}
-        />
-      )}
-
-      {/* Celebración */}
-      <AnimatePresence>
-        {showCelebration && (
-          <motion.div
-            className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {[...Array(12)].map((_, i) => (
+        {/* Celebración animada */}
+        <AnimatePresence>
+          {showCelebration && (
+            <motion.div
+              className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
               <motion.div
-                key={i}
-                className="absolute text-4xl pointer-events-none"
-                style={{
-                  left: `${50 + (Math.random() - 0.5) * 60}%`,
-                  top: `${50 + (Math.random() - 0.5) * 60}%`
-                }}
-                initial={{ scale: 0, rotate: 0 }}
-                animate={{ 
-                  scale: [0, 1.5, 0],
-                  rotate: 360,
-                  y: [0, -100, -200]
-                }}
-                transition={{ 
-                  duration: 3, 
-                  delay: i * 0.1,
-                  ease: "easeOut" as const
-                }}
+                className="text-8xl"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                exit={{ scale: 0, rotate: 180 }}
+                transition={{ type: "spring", duration: 0.8 }}
               >
-                {['🌱', '🌟', '💚', '🎉'][i % 4]}
+                🌟
               </motion.div>
-            ))}
-          </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notificación de horas extras */}
+        {showOvertimeNotification && (
+          <OvertimeNotification
+            employeeName={employee.apodo || employee.nombre}
+            currentHours={overtimeData.currentHours}
+            onRequestSubmit={handleOvertimeRequest}
+            isDomingoFestivo={overtimeData.isDomingoFestivo}
+            isSundayOrHoliday={overtimeData.isSundayOrHoliday}
+            reason={overtimeData.reason}
+            onDismiss={() => setShowOvertimeNotification(false)}
+          />
         )}
-      </AnimatePresence>
+      </div>
     </div>
   )
 } 
