@@ -952,11 +952,15 @@ export class SiriusDB {
                 }
               }
               
-              // Para tiempo real, clasificar como ordinarias por simplicidad
-              // (el cálculo completo se hará cuando registre salida)
+              // Para tiempo real, clasificar correctamente según legislación colombiana
               horasCalculadas.horas_ordinarias = Math.min(horasCalculadas.total_horas, 8)
               horasCalculadas.horas_extra_diurnas = Math.max(0, horasCalculadas.total_horas - 8)
-              horasCalculadas.total_pago = horasCalculadas.total_horas * (empleado.salario_hora || empleado.salario || 15000)
+              
+              // Calcular pago correctamente: salario base + recargos
+              const salarioHora = empleado.salario_hora || empleado.salario || 15000
+              const salarioBase = horasCalculadas.horas_ordinarias * salarioHora
+              const pagoExtras = horasCalculadas.horas_extra_diurnas * salarioHora * 1.25 // 25% recargo extra diurna
+              horasCalculadas.total_pago = salarioBase + pagoExtras
             }
 
             return {

@@ -196,7 +196,7 @@ SELECT
     CASE 
         WHEN COUNT(*) % 4 = 0 AND COUNT(DISTINCT tr.employee_id) = COUNT(*) / 4 
         THEN 'PATRÓN DUMMY (4 registros por empleado)'
-        WHEN TIME(MIN(tr.timestamp)) = '08:00:00' AND TIME(MAX(tr.timestamp)) = '17:00:00'
+        WHEN (MIN(tr.timestamp))::time = '08:00:00' AND (MAX(tr.timestamp))::time = '17:00:00'
         THEN 'PATRÓN DUMMY (8-17 exacto)'
         ELSE 'NORMAL'
     END as patron_detectado

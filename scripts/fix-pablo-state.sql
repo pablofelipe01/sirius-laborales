@@ -59,7 +59,7 @@ WHERE employee_id = (SELECT id FROM employees WHERE cedula = '79454772')
     mensaje_motivacional ILIKE '%dummy%' 
     OR mensaje_motivacional ILIKE '%test%'
     OR mensaje_motivacional ILIKE '%prueba%'
-    OR TIME(timestamp) = '17:00:00'  -- Horario típico de datos de prueba
+    OR timestamp::time = '17:00:00'  -- Horario típico de datos de prueba
   );
 
 -- 2.3 Asegurar entrada correcta de Pablo si no existe
@@ -132,7 +132,7 @@ SELECT
     e.nombre,
     e.salario_hora,
     COUNT(tr.id) as registros_hoy,
-    STRING_AGG(tr.tipo ORDER BY tr.timestamp, ', ') as tipos_registros,
+    STRING_AGG(tr.tipo, ', ' ORDER BY tr.timestamp) as tipos_registros,
     MIN(tr.timestamp) as primer_registro,
     MAX(tr.timestamp) as ultimo_registro,
     CASE 
