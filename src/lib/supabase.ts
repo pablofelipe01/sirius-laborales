@@ -1272,7 +1272,8 @@ export class SiriusDB {
           apodo,
           cargo,
           departamento,
-          salario
+          salario,
+          salario_hora
         `)
         .eq('activo', true)
         .order('nombre')
@@ -1349,17 +1350,17 @@ export class SiriusDB {
                     horas_festivas_diurnas: 0,
                     horas_festivas_nocturnas: 0,
                     total_horas: horasHoy,
-                    salario_base: emp.salario * Math.min(horasHoy, 8),
+                    salario_base: emp.salario_hora * Math.min(horasHoy, 8),
                     recargo_nocturno: 0,
                     recargo_dominical: 0,
                     recargo_festivo: 0,
-                    extra_diurna: emp.salario * 0.25 * Math.max(0, horasHoy - 8),
+                    extra_diurna: emp.salario_hora * 0.25 * Math.max(0, horasHoy - 8),
                     extra_nocturna: 0,
                     extra_dominical_diurna: 0,
                     extra_dominical_nocturna: 0,
                     extra_festiva_diurna: 0,
                     extra_festiva_nocturna: 0,
-                    total_pago: emp.salario * horasHoy + (emp.salario * 0.25 * Math.max(0, horasHoy - 8)),
+                    total_pago: emp.salario_hora * horasHoy + (emp.salario_hora * 0.25 * Math.max(0, horasHoy - 8)),
                     pausas_activas_realizadas: 0
                   }
                 }
