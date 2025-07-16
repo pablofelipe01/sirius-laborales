@@ -1056,10 +1056,13 @@ export class SiriusDB {
     }
   }
 
-  // Obtener reporte de nómina
+  // Obtener reporte de nómina (mejorado con datos en tiempo real)
   static async getPayrollReport(startDate: string, endDate: string) {
     try {
-      const { data, error } = await supabase
+      const today = getTodayLocal()
+      
+      // 1. Obtener datos de hours_summary (jornadas completadas)
+      const { data: completedData, error } = await supabase
         .from('hours_summary')
         .select(`
           *,
@@ -1079,9 +1082,114 @@ export class SiriusDB {
         console.error('Error obteniendo reporte de nómina:', error)
         return []
       }
-      
-      // Transformar datos al formato esperado por la página de nómina
-      const transformedData = (data || []).map((record: any) => ({
+
+      // 2. Si el rango incluye HOY, obtener empleados activos y calcular horas en tiempo real
+      const realtimeData: typeof completedData = []
+      if (startDate <= today && endDate >= today) {
+        // Obtener empleados que están trabajando HOY pero no han completado jornada
+        const { data: empleadosHoy } = await supabase
+          .from('employees')
+          .select(`
+            id,
+            nombre,
+            apodo,
+            cedula,
+            cargo,
+            salario_hora
+          `)
+          .eq('activo', true)
+          .neq('cedula', '1019090206') // Excluir admin
+        
+        if (empleadosHoy) {
+          // Para cada empleado, verificar si tiene actividad HOY sin entrada en hours_summary
+          for (const emp of empleadosHoy) {
+            // Verificar si ya tiene entrada en hours_summary para HOY
+            const yaEnSummary = completedData?.some(record => 
+              record.employee_id === emp.id && record.fecha === today
+            )
+            
+            if (!yaEnSummary) {
+              // Obtener registros de tiempo de HOY
+              const registros = await this.getTodayRecords(emp.id)
+              
+              if (registros.length > 0) {
+                // Calcular horas en tiempo real usando la misma lógica del dashboard
+                const entrada = registros.find(r => r.tipo === 'entrada')
+                const salida = registros.find(r => r.tipo === 'salida')
+                const inicioAlmuerzo = registros.find(r => r.tipo === 'inicio_almuerzo')
+                const finAlmuerzo = registros.find(r => r.tipo === 'fin_almuerzo')
+                const ultimoRegistro = registros[registros.length - 1]
+                
+                let horasHoy = 0
+                if (entrada) {
+                  const estaActivo = ultimoRegistro && ultimoRegistro.tipo !== 'salida'
+                  
+                  if (salida) {
+                    // Jornada completada hoy mismo, calcular con tiempo de salida
+                    const { calculateWorkHours } = await import('./utils')
+                    horasHoy = calculateWorkHours(
+                      entrada.timestamp, 
+                      salida.timestamp, 
+                      inicioAlmuerzo?.timestamp, 
+                      finAlmuerzo?.timestamp
+                    )
+                  } else if (estaActivo) {
+                    // Está trabajando actualmente, calcular hasta ahora
+                    const { calculateWorkHours } = await import('./utils')
+                    horasHoy = calculateWorkHours(
+                      entrada.timestamp, 
+                      new Date().toISOString(), 
+                      inicioAlmuerzo?.timestamp, 
+                      finAlmuerzo?.timestamp
+                    )
+                  }
+                }
+                
+                // Solo agregar si tiene horas trabajadas
+                if (horasHoy > 0) {
+                  // Crear entrada simulada para el reporte
+                  realtimeData.push({
+                    employee_id: emp.id,
+                    fecha: today,
+                    employees: {
+                      nombre: emp.nombre,
+                      apodo: emp.apodo,
+                      cedula: emp.cedula,
+                      cargo: emp.cargo,
+                      salario_hora: emp.salario_hora
+                    },
+                    // Por ahora solo calculamos horas ordinarias en tiempo real
+                    // El cálculo completo de recargos se hará cuando complete la jornada
+                    horas_ordinarias: Math.min(horasHoy, 8),
+                    horas_extra_diurnas: Math.max(0, horasHoy - 8),
+                    horas_extra_nocturnas: 0,
+                    horas_nocturnas: 0,
+                    horas_dominicales_diurnas: 0,
+                    horas_dominicales_nocturnas: 0,
+                    horas_festivas_diurnas: 0,
+                    horas_festivas_nocturnas: 0,
+                    total_horas: horasHoy,
+                    salario_base: emp.salario_hora * Math.min(horasHoy, 8),
+                    recargo_nocturno: 0,
+                    recargo_dominical: 0,
+                    recargo_festivo: 0,
+                    extra_diurna: emp.salario_hora * 0.25 * Math.max(0, horasHoy - 8),
+                    extra_nocturna: 0,
+                    total_pago: emp.salario_hora * horasHoy + (emp.salario_hora * 0.25 * Math.max(0, horasHoy - 8)),
+                    pausas_activas_realizadas: 0 // TODO: calcular pausas del día
+                  })
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Combinar datos completados + datos en tiempo real
+      const allData = [...(completedData || []), ...realtimeData]
+
+      // 4. Transformar datos al formato esperado por la página de nómina
+      const transformedData = allData.map((record) => ({
         employee: {
           id: record.employee_id,
           nombre: record.employees.nombre,
@@ -1142,7 +1250,7 @@ export class SiriusDB {
 
   // ========== SISTEMA DE QUINCENAS SIRIUS ==========
 
-  // Obtener acumulado de una quincena específica para todos los empleados
+  // Obtener acumulado de una quincena específica para todos los empleados (mejorado con datos en tiempo real)
   static async getQuincenaReport(quincenaId: string) {
     try {
       const { getRangoQuincena } = await import('./quincenas-sirius')
@@ -1151,6 +1259,8 @@ export class SiriusDB {
       if (!rango) {
         throw new Error(`Quincena ${quincenaId} no encontrada`)
       }
+      
+      const today = getTodayLocal()
       
       // Obtener todos los empleados con sus acumulados de la quincena
       const { data: empleados, error } = await supabase
@@ -1175,7 +1285,7 @@ export class SiriusDB {
       // Para cada empleado, calcular su acumulado en la quincena
       const reporteQuincena = await Promise.all(
         empleados.map(async (emp) => {
-          // Obtener resúmenes de horas de la quincena
+          // Obtener resúmenes de horas de la quincena (jornadas completadas)
           const { data: horasQuincena } = await supabase
             .from('hours_summary')
             .select('*')
@@ -1184,20 +1294,99 @@ export class SiriusDB {
             .lte('fecha', rango.fin)
             .order('fecha')
           
-          // Calcular totales
-          const totalHoras = horasQuincena?.reduce((acc, h) => acc + h.total_horas, 0) || 0
-          const totalPago = horasQuincena?.reduce((acc, h) => acc + h.total_pago, 0) || 0
-          const horasOrdinarias = horasQuincena?.reduce((acc, h) => acc + h.horas_ordinarias, 0) || 0
-          const horasExtras = horasQuincena?.reduce((acc, h) => 
-            acc + h.horas_extra_diurnas + h.horas_extra_nocturnas, 0) || 0
-          const horasNocturnas = horasQuincena?.reduce((acc, h) => acc + h.horas_nocturnas, 0) || 0
-          const horasDominicales = horasQuincena?.reduce((acc, h) => 
-            acc + h.horas_dominicales_diurnas + h.horas_dominicales_nocturnas, 0) || 0
-          const horasFestivas = horasQuincena?.reduce((acc, h) => 
-            acc + h.horas_festivas_diurnas + h.horas_festivas_nocturnas, 0) || 0
-          const pausasActivas = horasQuincena?.reduce((acc, h) => acc + h.pausas_activas_realizadas, 0) || 0
+          // Si el rango incluye HOY y el empleado está activo, incluir horas en tiempo real
+          let horasRealtimeHoy = null
+          if (rango.inicio <= today && rango.fin >= today) {
+            // Verificar si ya tiene entrada en hours_summary para HOY
+            const yaEnSummary = horasQuincena?.some(h => h.fecha === today)
+            
+            if (!yaEnSummary) {
+              // Obtener registros de tiempo de HOY
+              const registros = await this.getTodayRecords(emp.id)
+              
+              if (registros.length > 0) {
+                const entrada = registros.find(r => r.tipo === 'entrada')
+                const salida = registros.find(r => r.tipo === 'salida')
+                const inicioAlmuerzo = registros.find(r => r.tipo === 'inicio_almuerzo')
+                const finAlmuerzo = registros.find(r => r.tipo === 'fin_almuerzo')
+                const ultimoRegistro = registros[registros.length - 1]
+                
+                let horasHoy = 0
+                if (entrada) {
+                  const estaActivo = ultimoRegistro && ultimoRegistro.tipo !== 'salida'
+                  
+                  if (salida) {
+                    // Jornada completada hoy mismo
+                    const { calculateWorkHours } = await import('./utils')
+                    horasHoy = calculateWorkHours(
+                      entrada.timestamp, 
+                      salida.timestamp, 
+                      inicioAlmuerzo?.timestamp, 
+                      finAlmuerzo?.timestamp
+                    )
+                  } else if (estaActivo) {
+                    // Está trabajando actualmente
+                    const { calculateWorkHours } = await import('./utils')
+                    horasHoy = calculateWorkHours(
+                      entrada.timestamp, 
+                      new Date().toISOString(), 
+                      inicioAlmuerzo?.timestamp, 
+                      finAlmuerzo?.timestamp
+                    )
+                  }
+                }
+                
+                // Solo incluir si tiene horas trabajadas
+                if (horasHoy > 0) {
+                  horasRealtimeHoy = {
+                    fecha: today,
+                    horas_ordinarias: Math.min(horasHoy, 8),
+                    horas_extra_diurnas: Math.max(0, horasHoy - 8),
+                    horas_extra_nocturnas: 0,
+                    horas_nocturnas: 0,
+                    horas_dominicales_diurnas: 0,
+                    horas_dominicales_nocturnas: 0,
+                    horas_festivas_diurnas: 0,
+                    horas_festivas_nocturnas: 0,
+                    total_horas: horasHoy,
+                    salario_base: emp.salario * Math.min(horasHoy, 8),
+                    recargo_nocturno: 0,
+                    recargo_dominical: 0,
+                    recargo_festivo: 0,
+                    extra_diurna: emp.salario * 0.25 * Math.max(0, horasHoy - 8),
+                    extra_nocturna: 0,
+                    extra_dominical_diurna: 0,
+                    extra_dominical_nocturna: 0,
+                    extra_festiva_diurna: 0,
+                    extra_festiva_nocturna: 0,
+                    total_pago: emp.salario * horasHoy + (emp.salario * 0.25 * Math.max(0, horasHoy - 8)),
+                    pausas_activas_realizadas: 0
+                  }
+                }
+              }
+            }
+          }
           
-          const diasTrabajados = horasQuincena?.length || 0
+          // Combinar datos de hours_summary + datos en tiempo real de HOY
+          const todasLasHoras = [...(horasQuincena || [])]
+          if (horasRealtimeHoy) {
+            todasLasHoras.push(horasRealtimeHoy)
+          }
+          
+          // Calcular totales
+          const totalHoras = todasLasHoras.reduce((acc, h) => acc + h.total_horas, 0)
+          const totalPago = todasLasHoras.reduce((acc, h) => acc + h.total_pago, 0)
+          const horasOrdinarias = todasLasHoras.reduce((acc, h) => acc + h.horas_ordinarias, 0)
+          const horasExtras = todasLasHoras.reduce((acc, h) => 
+            acc + h.horas_extra_diurnas + h.horas_extra_nocturnas, 0)
+          const horasNocturnas = todasLasHoras.reduce((acc, h) => acc + h.horas_nocturnas, 0)
+          const horasDominicales = todasLasHoras.reduce((acc, h) => 
+            acc + h.horas_dominicales_diurnas + h.horas_dominicales_nocturnas, 0)
+          const horasFestivas = todasLasHoras.reduce((acc, h) => 
+            acc + h.horas_festivas_diurnas + h.horas_festivas_nocturnas, 0)
+          const pausasActivas = todasLasHoras.reduce((acc, h) => acc + h.pausas_activas_realizadas, 0)
+          
+          const diasTrabajados = todasLasHoras.length
           
           return {
             empleado: emp,
@@ -1211,7 +1400,7 @@ export class SiriusDB {
             horasFestivas,
             pausasActivas,
             diasTrabajados,
-            detalleDias: horasQuincena || []
+            detalleDias: todasLasHoras
           }
         })
       )
